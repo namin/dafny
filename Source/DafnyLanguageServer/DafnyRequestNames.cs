@@ -8,6 +8,7 @@
     public const string VerificationSymbolStatus = "dafny/textDocument/symbolStatus";
 
     // Requests from client to server
+    public const string InductiveProofSketch = "dafny/inductiveProofSketch";
     public const string CounterExample = "dafny/counterExample";
     public const string VerifySymbol = "dafny/textDocument/verifySymbol";
     public const string CancelVerifySymbol = "dafny/textDocument/cancelVerifySymbol";
