@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Microsoft.Dafny;
 using System.Text;
 using System.Linq;
+using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Dafny;
 
@@ -32,55 +33,51 @@ public class InductiveProofSketcher : InductionRewriter {
     return proofSketch;
   }
 
-private bool isNatType(Type type) {
-  var userDefinedType = type as UserDefinedType;
-  if (userDefinedType != null && userDefinedType.Name == "nat") {
-    return true;
+  private bool isNatType(Type type) {
+    var userDefinedType = type as UserDefinedType;
+    if (userDefinedType != null && userDefinedType.Name == "nat") {
+      return true;
+    }
+    return false;
   }
-  return false;
-}
   /// <summary>
   /// Identifies induction variables in the method's input parameters.
   /// </summary>
   /// <param name="method">The method to analyze.</param>
   /// <returns>List of variables suitable for induction.</returns>
-public List<IVariable> FindInductionVariables(Method method) {
-    var inductionVariables = new List<IVariable>();
+  public List<IVariable> FindInductionVariables(Method method) {
+      var inductionVariables = new List<IVariable>();
 
-    // Iterate over the parameters
-    foreach (var formal in method.Ins) {
-        Console.WriteLine($"Checking if {formal.Name} is a candidate for induction...");
+      // Look for a user-specified induction variable in the decreases clause
+      if (method.Decreases.Expressions.Count > 0) {
+          var decreasesExpr = method.Decreases.Expressions.First(); // Assuming the first expression is relevant
+          var decreasesVar = GetVariableFromExpression(decreasesExpr);
+          if (decreasesVar != null) {
+              inductionVariables.Add(decreasesVar);
+              return inductionVariables; // Use this as the induction variable if found
+          }
+      }
 
-        // Check if the parameter is a nat (non-negative integer)
-        if (isNatType(formal.Type)) {
-            Console.WriteLine($"{formal.Name} is a candidate for induction (Type: nat)");
-            inductionVariables.Add(formal);
-        }
+      // Fallback: Iterate over the parameters and look for the default induction variable (e.g., nat or datatype)
+      foreach (var formal in method.Ins) {
+          if (isNatType(formal.Type) || formal.Type.IsDatatype) {
+              inductionVariables.Add(formal);
+              break; // For now, pick the first suitable variable; can be improved later
+          }
+      }
 
-        // If the parameter is a datatype, it's also a candidate for induction
-        else if (formal.Type.IsDatatype) {
-            Console.WriteLine($"{formal.Name} is a candidate for induction (Type: {formal.Type})");
-            inductionVariables.Add(formal);
-        }
-    }
+      return inductionVariables;
+  }
 
-    // Iterate over the method's preconditions (Req) to find potential induction variables
-    foreach (var precondition in method.Req) {
-        foreach (var inputVar in method.Ins) {
-            // Check if the input variable occurs in a recursive function call
-            if (InductionHeuristic.VarOccursInArgumentToRecursiveFunction(Reporter.Options, precondition.E, inputVar)) {
-                Console.WriteLine($"{inputVar.Name} occurs in a recursive function in the precondition.");
-                inductionVariables.Add(inputVar);
-            }
-        }
-    }
+  // Helper function to extract the variable from the decreases expression (if applicable)
+  private IVariable GetVariableFromExpression(Expression expr) {
+      if (expr.Resolved is IdentifierExpr idExpr) {
+          return idExpr.Var; // Return the variable bound to the identifier
+      }
+      // Handle other potential cases for expressions in the decreases clause, if necessary
+      return null;
+  }
 
-    if (inductionVariables.Count == 0) {
-        Console.WriteLine("No induction variables found for the given method.");
-    }
-
-    return inductionVariables;
-}
   /// <summary>
   /// Builds the Dafny proof sketch for base and recursive cases based on induction variables.
   /// </summary>
@@ -88,49 +85,55 @@ public List<IVariable> FindInductionVariables(Method method) {
   /// <param name="inductionVariables">The list of variables for which to generate the proof sketch.</param>
   /// <returns>The proof sketch as a Dafny code string.</returns>
   private string BuildProofSketch(Method method, List<IVariable> inductionVariables) {
-    var sb = new StringBuilder();
-    var inductionVar = inductionVariables[0];  // Assuming the first variable is the induction variable
+      var sb = new StringBuilder();
+      var inductionVar = inductionVariables[0];  // Assuming the first variable is the induction variable
 
-    // Generate the lemma header
-    sb.AppendLine($"lemma {method.Name}_Induction(");
-    sb.AppendLine($"  {inductionVar.Name}: {inductionVar.Type.ToString()}");
-    sb.AppendLine(")");
-    
-    // Add the ensures clause based on the method's postconditions
-    sb.AppendLine("  ensures");
-    foreach (var postcondition in method.Ens) {
-      sb.AppendLine($"    {postcondition.E.ToString()},");
-    }
-    sb.AppendLine("{");
+      if (inductionVar.Type.IsDatatype) {
+          var datatypeDecl = (DatatypeDecl)inductionVar.Type.AsDatatype;
+          sb.AppendLine($"{Indent(0)}match {inductionVar.Name} {{");
 
-    // Check if the induction variable is a datatype
-    if (inductionVar.Type.IsDatatype) {
-        // Handle each constructor of the datatype
-        var datatypeDecl = (DatatypeDecl)inductionVar.Type.AsDatatype;  // Cast to DatatypeDecl to access constructors
-        sb.AppendLine($"  match {inductionVar.Name} {{");
-        
-        foreach (var ctor in datatypeDecl.Ctors) {
-            sb.AppendLine($"    case {ctor.Name}({string.Join(", ", ctor.Formals.Select(f => f.Name))}) => {{");
-            sb.AppendLine($"      // Handle case for {ctor.Name}");
-            sb.AppendLine($"      assert TestMethod({inductionVar.Name});  // Prove for case {ctor.Name}");
-            sb.AppendLine("    }");
-        }
+          foreach (var ctor in datatypeDecl.Ctors) {
+              var formalParams = string.Join(", ", ctor.Formals.Select(f => f.Name));
+              sb.AppendLine($"{Indent(1)}case {ctor.Name}({formalParams}) => {{");
 
-        sb.AppendLine("  }");
-    } else {
-        // Add the base case for non-datatype (e.g., nat)
-        sb.AppendLine($"  if {inductionVar.Name} == 0 {{");
-        sb.AppendLine($"    assert {method.Name}({inductionVar.Name});  // Base case");
-        sb.AppendLine("  } else {");
-        sb.AppendLine($"    {method.Name}_Induction({inductionVar.Name} - 1);  // Inductive hypothesis");
-        sb.AppendLine($"    assert {method.Name}({inductionVar.Name});  // Prove for {inductionVar.Name}");
-        sb.AppendLine("  }");
-    }
+              // Collect the recursive parameters (fields that are of the same datatype as the inductive variable)
+              var recursiveFields = ctor.Formals
+                  .Where(f => f.Type.IsDatatype && f.Type.AsDatatype == inductionVar.Type.AsDatatype)
+                  .Select(f => f.Name);
 
-    sb.AppendLine("}");
+              foreach (var recursiveField in recursiveFields) {
+                sb.AppendLine(recursiveMethodCall(method, inductionVar, recursiveField));
+              }
 
-    // Return the generated proof sketch
-    return sb.ToString();
+              sb.AppendLine($"{Indent(1)}}}");
+          }
+
+          sb.AppendLine($"{Indent(0)}}}");
+      } else if (isNatType(inductionVar.Type)) {
+          sb.AppendLine($"{Indent(0)}if ({inductionVar.Name} == 0) {{");
+          sb.AppendLine($"{Indent(1)}// Base case for {inductionVar.Name}");
+          sb.AppendLine($"{Indent(0)}}} else {{");
+          sb.AppendLine(recursiveMethodCall(method, inductionVar, $"{inductionVar.Name} - 1"));
+          sb.AppendLine($"{Indent(0)}}}");
+      }
+
+      // Return the generated proof sketch
+      return sb.ToString();
   }
+
+  private string methodParams(Method method, IVariable inductionVar, string decreasedArg) {
+    return string.Join(", ", method.Ins.Select(param => {
+      if (param == inductionVar) {
+        return decreasedArg;
+      }
+      return param.Name;
+    }));
+  }
+
+  private string recursiveMethodCall(Method method, IVariable inductionVar, string decreasedArg) {
+    return ($"{Indent(2)}{method.Name}({methodParams(method, inductionVar, decreasedArg)});");
+  }
+
+  string Indent(int level) => new string(' ', (level + 1) * 4);
 }
 
