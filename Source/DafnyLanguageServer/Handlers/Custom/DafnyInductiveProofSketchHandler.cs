@@ -48,21 +48,12 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
     private Method GetMethodFromPosition(Program resolvedProgram, Position position) {
       // Accessing the DefaultModuleDefinition from the resolvedProgram
       if (resolvedProgram.DefaultModuleDef is DefaultModuleDefinition defaultModule) {
-        // Traversing the top-level declarations in the Dafny module
         foreach (var topLevelDecl in defaultModule.TopLevelDecls) {
           if (topLevelDecl is TopLevelDeclWithMembers classDecl) {
-            Method previousMethod = null;
             foreach (var member in classDecl.Members) {
-              if (member is Method method) {
-                if (previousMethod != null && IsPositionAfter(previousMethod.tok, position)) {
-                  return previousMethod;
-                }
-                previousMethod = method;
+              if (member is Method method && IsPositionInRange(method.tok, method.EndToken, position)) {
+                return method;
               }
-            }
-            // Check if the position is in the last method
-            if (previousMethod != null && IsPositionAfter(previousMethod.tok, position)) {
-              return previousMethod;
             }
           }
         }
@@ -70,15 +61,11 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
       return null;
     }
 
-    // Helper method to check if the position is after the method's start token
-    private bool IsPositionAfter(IToken methodToken, Position position) {
-      var startLine = methodToken.line - 1;  // Convert to zero-based index
-      var startCharacter = methodToken.col - 1;
-
-      // Check if the position is after the start of the method
-      return position.Line > startLine || (position.Line == startLine && position.Character >= startCharacter);
+    // Adjust to check if position is between start and end tokens
+    private bool IsPositionInRange(IToken startToken, IToken endToken, Position position) {
+      return position.Line >= startToken.line && position.Line <= endToken.line &&
+            (position.Line != startToken.line || position.Character >= startToken.col) &&
+            (position.Line != endToken.line || position.Character <= endToken.col);
     }
-
-
   }
 }
