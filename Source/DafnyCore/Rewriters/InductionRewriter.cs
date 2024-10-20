@@ -50,8 +50,7 @@ public class InductionRewriter : IRewriter {
       }
     }
   }
-
-  void ProcessMethodExpressions(Method method) {
+protected void ProcessMethodExpressions(Method method) {
     Contract.Requires(method != null);
     var visitor = new Induction_Visitor(this);
     method.Req.ForEach(mfe => visitor.Visit(mfe.E));
