@@ -8,12 +8,15 @@ namespace Microsoft.Dafny;
 public class InductiveProofSketcher : ProofSketcher {
   public InductiveProofSketcher(ErrorReporter reporter) : base(reporter) {
   }
+  override public string GenerateProofSketch(Method method, int lineNumber) {
+    return GenerateProofSketch(method);
+  }
   /// <summary>
   /// Generates a Dafny code proof sketch for a given method using induction.
   /// </summary>
   /// <param name="method">The method to generate the proof sketch for.</param>
   /// <returns>A string containing the generated Dafny code for the proof sketch.</returns>
-  override public string GenerateProofSketch(Method method) {
+  public string GenerateProofSketch(Method method) {
     // Now we can access protected methods from InductionRewriter
     ProcessMethodExpressions(method); // Access inherited method
 

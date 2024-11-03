@@ -29,7 +29,7 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
           if (method != null) {
             var sketcher = CreateSketcher(request.SketchType, reporter);
             if (sketcher != null) {
-              var sketch = sketcher.GenerateProofSketch(method);
+              var sketch = sketcher.GenerateProofSketch(method, request.Position.Line);
               return new ProofSketchResponse { Sketch = sketch };    
             } else {
               errorMsg += $"\n// No sketcher found";
@@ -48,8 +48,7 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
         case SketchType.Inductive:
           return new InductiveProofSketcher(reporter);
         case SketchType.Assertions:
-          // TODO
-          return new InductiveProofSketcher(reporter);
+          return new ConditionAssertionProofSketcher(reporter);
         default:
           return null;
       }
