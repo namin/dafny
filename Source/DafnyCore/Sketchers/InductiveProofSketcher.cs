@@ -1,23 +1,19 @@
-using System;
 using System.Collections.Generic;
 using Microsoft.Dafny;
 using System.Text;
 using System.Linq;
-using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Dafny;
 
-public class InductiveProofSketcher : InductionRewriter {
+public class InductiveProofSketcher : ProofSketcher {
   public InductiveProofSketcher(ErrorReporter reporter) : base(reporter) {
-    // Inherits from InductionRewriter, can access protected methods
   }
-
   /// <summary>
   /// Generates a Dafny code proof sketch for a given method using induction.
   /// </summary>
   /// <param name="method">The method to generate the proof sketch for.</param>
   /// <returns>A string containing the generated Dafny code for the proof sketch.</returns>
-  public string GenerateProofSketch(Method method) {
+  override public string GenerateProofSketch(Method method) {
     // Now we can access protected methods from InductionRewriter
     ProcessMethodExpressions(method); // Access inherited method
 
@@ -133,7 +129,5 @@ public class InductiveProofSketcher : InductionRewriter {
   private string recursiveMethodCall(Method method, IVariable inductionVar, string decreasedArg) {
     return ($"{Indent(2)}{method.Name}({methodParams(method, inductionVar, decreasedArg)});");
   }
-
-  string Indent(int level) => new string(' ', (level + 1) * 4);
 }
 

@@ -5,11 +5,11 @@ using Microsoft.Extensions.Logging;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 
 namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
-  public class DafnyInductiveProofSketchHandler : IInductiveProofSketchHandler {
-    private readonly ILogger<DafnyInductiveProofSketchHandler> logger;
+  public class DafnyProofSketchHandler : IProofSketchHandler {
+    private readonly ILogger<DafnyProofSketchHandler> logger;
     private readonly IProjectDatabase projects;
 
-    public DafnyInductiveProofSketchHandler(ILogger<DafnyInductiveProofSketchHandler> logger, IProjectDatabase projects) {
+    public DafnyProofSketchHandler(ILogger<DafnyProofSketchHandler> logger, IProjectDatabase projects) {
       this.logger = logger;
       this.projects = projects;
     }
@@ -24,19 +24,16 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
         var state = await projectManager.GetStateAfterResolutionAsync();
 
         if (state != null && state.ResolvedProgram is Program resolvedProgram) {
-          // Create an ErrorReporter for the InductiveProofSketcher
           var reporter = new ConsoleErrorReporter(projectManager.Compilation.Options);
-
-          // Find the method at the given position
           var method = GetMethodFromPosition(resolvedProgram, request.Position);
-
           if (method != null) {
-            // Create the InductiveProofSketcher with the ErrorReporter
-            var sketcher = new InductiveProofSketcher(reporter);
-            // Generate the proof sketch using InductiveProofSketcher
-            var sketch = sketcher.GenerateProofSketch(method);
-           
-            return new ProofSketchResponse { Sketch = sketch };    
+            var sketcher = CreateSketcher(request.SketchType, reporter);
+            if (sketcher != null) {
+              var sketch = sketcher.GenerateProofSketch(method);
+              return new ProofSketchResponse { Sketch = sketch };    
+            } else {
+              errorMsg += $"\n// No sketcher found";
+            }
           } else {
             errorMsg += $"\n// No method found at position {request.Position} in {request.TextDocument.Uri}";
           }
@@ -45,6 +42,18 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
       return new ProofSketchResponse { Sketch = "\n// Error: no proof sketch generated" + errorMsg + "\n"}; 
     }
 
+    private ProofSketcher CreateSketcher(SketchType sketchType, ErrorReporter reporter)
+    {
+      switch (sketchType) {
+        case SketchType.Inductive:
+          return new InductiveProofSketcher(reporter);
+        case SketchType.Assertions:
+          // TODO
+          return new InductiveProofSketcher(reporter);
+        default:
+          return null;
+      }
+    }
     private Method GetMethodFromPosition(Program resolvedProgram, Position position) {
       // Accessing the DefaultModuleDefinition from the resolvedProgram
       if (resolvedProgram.DefaultModuleDef is DefaultModuleDefinition defaultModule) {
