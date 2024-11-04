@@ -27,7 +27,7 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
           var reporter = new ConsoleErrorReporter(projectManager.Compilation.Options);
           var method = GetMethodFromPosition(resolvedProgram, request.Position);
           if (method != null) {
-            var sketcher = CreateSketcher(request.SketchType, reporter);
+            var sketcher = ProofSketcher.Create(request.SketchType, reporter);
             if (sketcher != null) {
               var sketch = sketcher.GenerateProofSketch(method, request.Position.Line);
               return new ProofSketchResponse { Sketch = sketch };    
@@ -40,18 +40,6 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
         }
       }
       return new ProofSketchResponse { Sketch = "\n// Error: no proof sketch generated" + errorMsg + "\n"}; 
-    }
-
-    private ProofSketcher CreateSketcher(SketchType sketchType, ErrorReporter reporter)
-    {
-      switch (sketchType) {
-        case SketchType.Inductive:
-          return new InductiveProofSketcher(reporter);
-        case SketchType.Assertions:
-          return new ConditionAssertionProofSketcher(reporter);
-        default:
-          return null;
-      }
     }
     private Method GetMethodFromPosition(Program resolvedProgram, Position position) {
       // Accessing the DefaultModuleDefinition from the resolvedProgram
