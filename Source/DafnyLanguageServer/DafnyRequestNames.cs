@@ -9,6 +9,7 @@
 
     // Requests from client to server
     public const string proofSketch = "dafny/proofSketch";
+    public const string proofSketchTypeList = "dafny/proofSketchTypeList";
     public const string CounterExample = "dafny/counterExample";
     public const string VerifySymbol = "dafny/textDocument/verifySymbol";
     public const string CancelVerifySymbol = "dafny/textDocument/cancelVerifySymbol";
