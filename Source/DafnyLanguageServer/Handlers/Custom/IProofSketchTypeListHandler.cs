@@ -5,8 +5,8 @@ using OmniSharp.Extensions.JsonRpc;
 
 namespace Microsoft.Dafny.LanguageServer.Handlers.Custom
 {
-    [Method("dafny/proofSketchTypeList", Direction.ClientToServer)]
+    [Method(DafnyRequestNames.proofSketchTypeList, Direction.ClientToServer)]
     public interface IProofSketchTypeListHandler : IJsonRpcRequestHandler<ProofSketchTypeListParams, ProofSketchTypeListResponse> {
-        
+
     }
 }

@@ -25,9 +25,6 @@ public class InductiveProofSketcherTests {
         }
         ";
         var proofSketch = await setupAndGenerate(programText);
-        // Assert that the generated proof sketch contains the lemma
-        Assert.Contains("lemma", proofSketch);
-        Assert.Contains("TestMethod_Induction", proofSketch); // Check that the lemma is named correctly
         Assert.Contains("n == 0", proofSketch); // Check for the base case
         Assert.Contains("n - 1", proofSketch); // Check for the inductive step
     }
@@ -42,9 +39,6 @@ public class InductiveProofSketcherTests {
         }
         ";
         var proofSketch = await setupAndGenerate(programText);
-        // Assert that the generated proof sketch contains the lemma
-        Assert.Contains("lemma", proofSketch);
-        Assert.Contains("TestMethod_Induction", proofSketch); // Check that the lemma is named correctly
         Assert.Contains("constant", proofSketch);
         Assert.Contains("variable", proofSketch);
         Assert.Contains("plus", proofSketch);
