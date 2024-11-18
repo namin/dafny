@@ -49,10 +49,10 @@ namespace Microsoft.Dafny {
       var sb = new StringBuilder();
 
       sb.AppendLine($"{Indent(0)}if ({PrintExpression(functionCallExpr.Args[0])} == 0) {{");
-      sb.AppendLine($"{Indent(1)}}} else if ({PrintExpression(functionCallExpr.Args[0])} == 1) {{");
-      sb.AppendLine($"{Indent(1)}}} else {{");
-      sb.AppendLine($"{Indent(2)}{method.Name}({PrintExpression(functionCallExpr.Args[0])} - 2);");
-      sb.AppendLine($"{Indent(1)}}}");
+      sb.AppendLine($"{Indent(0)}}} else if ({PrintExpression(functionCallExpr.Args[0])} == 1) {{");
+      sb.AppendLine($"{Indent(0)}}} else {{");
+      sb.AppendLine($"{Indent(1)}{method.Name}({PrintExpression(functionCallExpr.Args[0])} - 2);");
+      sb.AppendLine($"{Indent(0)}}}");
 
       return sb.ToString();
     }
