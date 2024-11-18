@@ -5,6 +5,38 @@ using Microsoft.Dafny;
 using Xunit;
 
 public class InductiveProofSketcherTests {
+
+    [Fact]
+    public async Task TestGenerateProofSketchNatMethod() {
+        var programText = @"
+        method TestMethod(n: nat)
+            requires n > 0
+            ensures n == n // Dummy postcondition
+        {
+            // Body can be empty or contain code.
+        }
+        ";
+        var proofSketch = await SetupAndGenerateProofSketch(programText, "TestMethod");
+        Assert.Contains("n == 0", proofSketch); // Check for the base case
+        Assert.Contains("n - 1", proofSketch); // Check for the inductive step
+    }
+
+
+    [Fact]
+    public async Task TestGenerateProofSketchDatatypeExpr() {
+        var programText = @"
+        datatype Expr = constant(c: int) | variable(x: string) | plus(e1: Expr, e2: Expr) | times(e1: Expr, e2: Expr)
+        method TestMethod(e: Expr)
+        {
+        }
+        ";
+        var proofSketch = await SetupAndGenerateProofSketch(programText, "TestMethod");
+        Assert.Contains("constant", proofSketch);
+        Assert.Contains("variable", proofSketch);
+        Assert.Contains("plus", proofSketch);
+        Assert.Contains("times", proofSketch);
+    }
+
     [Fact]
     public async Task TestGenerateProofSketchNat() {
         var programText = @"
