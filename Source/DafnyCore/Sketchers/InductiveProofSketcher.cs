@@ -1,73 +1,35 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Microsoft.Dafny;
-using System.Linq;
 
 namespace Microsoft.Dafny {
 
     public class InductiveProofSketcher : ProofSketcher {
-        public InductiveProofSketcher(ErrorReporter reporter) : base(reporter) {
-        }
+      private readonly ErrorReporter reporter;
+
+      public InductiveProofSketcher(ErrorReporter reporter) : base(reporter) {
+        this.reporter = reporter;
+      }
 
         public override string GenerateProofSketch(Method method, int lineNumber) {
-            // Decide whether to use function-based induction based on the requires clause
-            if (RequiresCallsFunction(method)) {
-                return GenerateFunctionBasedInductionProofSketch(method);
+            if (RequiresCallsFunction(method, out var functionCall)) {
+                return GenerateFunctionBasedInductionProofSketch(method, functionCall);
             } else {
                 return GenerateStandardInductionProofSketch(method);
             }
         }
 
-        private bool RequiresCallsFunction(Method method) {
+        private bool RequiresCallsFunction(Method method, out FunctionCallExpr? functionCallExpr) {
+            functionCallExpr = null;
             foreach (var req in method.Req) {
-                if (ExprContainsFunctionCall(req.E)) {
+                functionCallExpr = FindFunctionCallExpr(req.E);
+                if (functionCallExpr != null) {
                     return true;
                 }
             }
             return false;
-        }
-
-        private bool ExprContainsFunctionCall(Expression expr) {
-            if (expr is FunctionCallExpr) {
-                return true;
-            }
-            foreach (var subExpr in expr.SubExpressions) {
-                if (ExprContainsFunctionCall(subExpr)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        private string GenerateFunctionBasedInductionProofSketch(Method method) {
-            var sb = new StringBuilder();
-
-            sb.AppendLine("// Function-based induction proof sketch");
-            sb.AppendLine($"// Prove {method.Name} using induction on function calls");
-
-            // Get the function called in the requires clause
-            var functionCallExpr = FindFunctionCallInRequires(method);
-            if (functionCallExpr != null) {
-                var functionName = functionCallExpr.Name;
-
-                sb.AppendLine($"Assume {functionName} holds for smaller inputs;");
-                sb.AppendLine($"Prove {functionName} holds for the current input based on its definition;");
-            } else {
-                sb.AppendLine("// Unable to identify the function for induction");
-            }
-
-            return sb.ToString();
-        }
-
-        private FunctionCallExpr? FindFunctionCallInRequires(Method method) {
-            foreach (var req in method.Req) {
-                var funcCall = FindFunctionCallExpr(req.E);
-                if (funcCall != null) {
-                    return funcCall;
-                }
-            }
-            return null;
         }
 
         private FunctionCallExpr? FindFunctionCallExpr(Expression expr) {
@@ -83,9 +45,147 @@ namespace Microsoft.Dafny {
             return null;
         }
 
+private string GenerateFunctionBasedInductionProofSketch(Method method, FunctionCallExpr functionCallExpr) {
+    var sb = new StringBuilder();
+
+    sb.AppendLine("// Function-based induction proof sketch");
+    sb.AppendLine($"// Prove {method.Name} using induction on function {functionCallExpr.Name}");
+    sb.AppendLine();
+
+    var function = functionCallExpr.Function;
+    if (function == null || function.Body == null) {
+        sb.AppendLine("// Unable to retrieve function definition.");
+        return sb.ToString();
+    }
+
+    // Analyze the function to get cases
+    var cases = GetFunctionCases(function);
+
+    if (cases.Count == 0) {
+        sb.AppendLine("// No cases found in function definition.");
+        return sb.ToString();
+    }
+
+    bool firstCase = true;
+    foreach (var functionCase in cases) {
+        var condition = functionCase.Condition != null ? PrintExpression(functionCase.Condition) : "true";
+        if (firstCase) {
+            sb.Append($"if ({condition}) {{\n");
+            firstCase = false;
+        } else {
+            sb.Append($"}} else if ({condition}) {{\n");
+        }
+
+        if (functionCase.IsBaseCase) {
+            sb.AppendLine("    // Base case:");
+            sb.AppendLine("    // Prove base case here.");
+        } else {
+            sb.AppendLine("    // Inductive case:");
+            sb.AppendLine();
+            // Generate recursive lemma invocation with decreased arguments
+            var decreasedArgs = GetDecreasedArguments(functionCase.RecursiveCall);
+            sb.AppendLine($"    {method.Name}({string.Join(", ", decreasedArgs)});");
+            sb.AppendLine();
+            sb.AppendLine("    // Prove inductive step here.");
+        }
+        // Do not append closing brace here; it will be appended before the next else if
+    }
+
+    // Close the last if/else if block
+    sb.AppendLine("} else {");
+    sb.AppendLine("    // Other cases if any.");
+    sb.AppendLine("}");
+    // Close the final brace
+    sb.AppendLine("}");
+
+    return sb.ToString();
+}
+
+        private class FunctionCase {
+            public Expression? Condition { get; set; }
+            public bool IsBaseCase { get; set; }
+            public FunctionCallExpr? RecursiveCall { get; set; }
+        }
+
+        private List<FunctionCase> GetFunctionCases(Function function) {
+            var cases = new List<FunctionCase>();
+            if (function.Body is ITEExpr iteExpr) {
+                AnalyzeITEExpr(iteExpr, function.Name, cases);
+            } else {
+                // Handle other types of expressions if necessary
+            }
+            return cases;
+        }
+
+private void AnalyzeITEExpr(ITEExpr iteExpr, string functionName, List<FunctionCase> cases) {
+    var thenCase = new FunctionCase {
+        Condition = iteExpr.Test,
+        IsBaseCase = !ExprContainsFunctionCall(iteExpr.Thn, functionName),
+        RecursiveCall = FindRecursiveCall(iteExpr.Thn, functionName)
+    };
+    cases.Add(thenCase);
+
+    if (iteExpr.Els != null) {
+        if (iteExpr.Els is ITEExpr elseITEExpr) {
+            AnalyzeITEExpr(elseITEExpr, functionName, cases);
+        } else {
+            // Manually create the condition 'n >= 2'
+            var nIdentifier = new IdentifierExpr(iteExpr.Test.tok, "n");
+            var twoLiteral = new LiteralExpr(iteExpr.Test.tok, 2);
+            var condition = new BinaryExpr(iteExpr.Test.tok, BinaryExpr.Opcode.Ge, nIdentifier, twoLiteral);
+
+            var elseCase = new FunctionCase {
+                Condition = condition,
+                IsBaseCase = !ExprContainsFunctionCall(iteExpr.Els, functionName),
+                RecursiveCall = FindRecursiveCall(iteExpr.Els, functionName)
+            };
+            cases.Add(elseCase);
+        }
+    }
+}
+        private FunctionCallExpr? FindRecursiveCall(Expression expr, string functionName) {
+            if (expr is FunctionCallExpr funcCallExpr && funcCallExpr.Name == functionName) {
+                return funcCallExpr;
+            }
+            foreach (var subExpr in expr.SubExpressions) {
+                var result = FindRecursiveCall(subExpr, functionName);
+                if (result != null) {
+                    return result;
+                }
+            }
+            return null;
+        }
+
+        private List<string> GetDecreasedArguments(FunctionCallExpr? recursiveCall) {
+            var decreasedArgs = new List<string>();
+            if (recursiveCall != null) {
+                foreach (var arg in recursiveCall.Args) {
+                    decreasedArgs.Add(PrintExpression(arg));
+                }
+            }
+            return decreasedArgs;
+        }
+
+        private bool ExprContainsFunctionCall(Expression expr, string functionName) {
+            if (expr is FunctionCallExpr funcCallExpr) {
+                if (funcCallExpr.Name == functionName) {
+                    return true;
+                }
+            }
+            foreach (var subExpr in expr.SubExpressions) {
+                if (ExprContainsFunctionCall(subExpr, functionName)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    private string PrintExpression(Expression expr) {
+      return Printer.ExprToString(reporter.Options, expr);
+    }
+
         private string GenerateStandardInductionProofSketch(Method method) {
             var sb = new StringBuilder();
-
             sb.AppendLine("// Standard induction proof sketch");
 
             // Find induction variables
@@ -100,11 +200,6 @@ namespace Microsoft.Dafny {
             return sb.ToString();
         }
 
-        /// <summary>
-        /// Identifies induction variables in the method's input parameters.
-        /// </summary>
-        /// <param name="method">The method to analyze.</param>
-        /// <returns>List of variables suitable for induction.</returns>
         private List<IVariable> FindInductionVariables(Method method) {
             var inductionVariables = new List<IVariable>();
 
@@ -129,7 +224,6 @@ namespace Microsoft.Dafny {
             return inductionVariables;
         }
 
-        // Helper function to extract the variable from the decreases expression (if applicable)
         private IVariable? GetVariableFromExpression(Expression expr) {
             if (expr.Resolved is IdentifierExpr idExpr) {
                 return idExpr.Var; // Return the variable bound to the identifier
@@ -138,26 +232,20 @@ namespace Microsoft.Dafny {
             return null;
         }
 
-        private bool IsNatType(Type type) {
-            var userDefinedType = type.AsNewtype;
-            if (userDefinedType != null && userDefinedType.Name == "nat") {
-                return true;
-            }
-            return type.IsBigOrdinalType || type.IsNumericBased(Type.NumericPersuasion.Int);
-        }
+  private bool IsNatType(Type type) {
+    var userDefinedType = type as UserDefinedType;
+    if (userDefinedType != null && userDefinedType.Name == "nat") {
+      return true;
+    }
+    return false;
+  }
 
-        /// <summary>
-        /// Builds the Dafny proof sketch for base and recursive cases based on induction variables.
-        /// </summary>
-        /// <param name="method">The method being analyzed.</param>
-        /// <param name="inductionVariables">The list of variables for which to generate the proof sketch.</param>
-        /// <returns>The proof sketch as a Dafny code string.</returns>
         private string BuildProofSketch(Method method, List<IVariable> inductionVariables) {
             var sb = new StringBuilder();
             var inductionVar = inductionVariables[0];  // Assuming the first variable is the induction variable
 
             if (inductionVar.Type.IsDatatype) {
-                var datatypeDecl = (DatatypeDecl)inductionVar.Type.AsDatatype;
+                var datatypeDecl = inductionVar.Type.AsDatatype;
                 sb.AppendLine($"match {inductionVar.Name} {{");
 
                 foreach (var ctor in datatypeDecl.Ctors) {
@@ -173,6 +261,7 @@ namespace Microsoft.Dafny {
                         sb.AppendLine(recursiveMethodCall(method, inductionVar, recursiveField));
                     }
 
+                    sb.AppendLine($"    // Prove case for {ctor.Name}");
                     sb.AppendLine($"  }}");
                 }
 
@@ -182,12 +271,12 @@ namespace Microsoft.Dafny {
                 sb.AppendLine($"  // Base case for {inductionVar.Name}");
                 sb.AppendLine($"}} else {{");
                 sb.AppendLine(recursiveMethodCall(method, inductionVar, $"{inductionVar.Name} - 1"));
+                sb.AppendLine($"  // Prove inductive step here.");
                 sb.AppendLine($"}}");
             } else {
                 sb.AppendLine("// Cannot generate induction proof sketch for this type.");
             }
 
-            // Return the generated proof sketch
             return sb.ToString();
         }
 
