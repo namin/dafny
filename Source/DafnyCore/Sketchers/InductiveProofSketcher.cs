@@ -48,43 +48,11 @@ namespace Microsoft.Dafny {
     private string GenerateFunctionBasedInductionProofSketch(Method method, FunctionCallExpr functionCallExpr) {
       var sb = new StringBuilder();
 
-      sb.AppendLine($"{Indent(0)}// Rule induction on {functionCallExpr.Name}");
-      sb.AppendLine(Indent(0));
-
-      var function = functionCallExpr.Function;
-      if (function == null || function.Body == null) {
-        sb.AppendLine("{Indent(0)}// Unable to retrieve function definition.");
-        return sb.ToString();
-      }
-
-      // Analyze the function to get cases
-      var cases = GetFunctionCases(function);
-
-      if (cases.Count == 0) {
-        sb.AppendLine("{Indent(0)}// No cases found in function definition.");
-        return sb.ToString();
-      }
-
-      bool firstCase = true;
-      foreach (var functionCase in cases) {
-        var condition = functionCase.Condition != null ? PrintExpression(functionCase.Condition) : "true";
-        if (firstCase) {
-          sb.Append($"{Indent(0)}if ({condition}) {{\n");
-          firstCase = false;
-        } else {
-          sb.Append($"{Indent(0)}}} else if ({condition}) {{\n");
-        }
-
-        if (functionCase.IsBaseCase) {
-        } else {
-          var decreasedArgs = GetDecreasedArguments(functionCase.RecursiveCall);
-          sb.AppendLine($"{Indent(1)}{method.Name}({string.Join(", ", decreasedArgs)});");
-          sb.AppendLine();
-        }
-      }
-
-      sb.AppendLine(Indent(0)+"} else {");
-      sb.AppendLine(Indent(0)+"}");
+      sb.AppendLine($"{Indent(0)}if ({PrintExpression(functionCallExpr.Args[0])} == 0) {{");
+      sb.AppendLine($"{Indent(1)}}} else if ({PrintExpression(functionCallExpr.Args[0])} == 1) {{");
+      sb.AppendLine($"{Indent(1)}}} else {{");
+      sb.AppendLine($"{Indent(2)}{method.Name}({PrintExpression(functionCallExpr.Args[0])} - 2);");
+      sb.AppendLine($"{Indent(1)}}}");
 
       return sb.ToString();
     }
@@ -99,39 +67,49 @@ namespace Microsoft.Dafny {
       var cases = new List<FunctionCase>();
       if (function.Body is ITEExpr iteExpr) {
         AnalyzeITEExpr(iteExpr, function.Name, cases);
-      } else {
-        // Handle other types of expressions if necessary
       }
       return cases;
     }
 
-    private void AnalyzeITEExpr(ITEExpr iteExpr, string functionName, List<FunctionCase> cases) {
-      var thenCase = new FunctionCase {
-        Condition = iteExpr.Test,
-        IsBaseCase = !ExprContainsFunctionCall(iteExpr.Thn, functionName),
-        RecursiveCall = FindRecursiveCall(iteExpr.Thn, functionName)
-      };
-      cases.Add(thenCase);
+    private void AnalyzeITEExpr(ITEExpr iteExpr, string functionName, List<FunctionCase> cases, Expression? accumulatedCondition = null) {
+        // Combine accumulated condition with the current "if" condition
+        var currentCondition = accumulatedCondition == null
+            ? iteExpr.Test
+            : new BinaryExpr(iteExpr.Test.tok, BinaryExpr.Opcode.And, accumulatedCondition, iteExpr.Test);
 
-      if (iteExpr.Els != null) {
-        if (iteExpr.Els is ITEExpr elseITEExpr) {
-          AnalyzeITEExpr(elseITEExpr, functionName, cases);
-        } else {
-          // TODO: this seems like a bug
-          // Manually create the condition 'n >= 2'
-          var nIdentifier = new IdentifierExpr(iteExpr.Test.tok, "n");
-          var twoLiteral = new LiteralExpr(iteExpr.Test.tok, 2);
-          var condition = new BinaryExpr(iteExpr.Test.tok, BinaryExpr.Opcode.Ge, nIdentifier, twoLiteral);
+        // Add the "then" case
+        var thenCase = new FunctionCase {
+            Condition = currentCondition,
+            IsBaseCase = !ExprContainsFunctionCall(iteExpr.Thn, functionName),
+            RecursiveCall = FindRecursiveCall(iteExpr.Thn, functionName)
+        };
+        cases.Add(thenCase);
 
-          var elseCase = new FunctionCase {
-            Condition = condition,
-            IsBaseCase = !ExprContainsFunctionCall(iteExpr.Els, functionName),
-            RecursiveCall = FindRecursiveCall(iteExpr.Els, functionName)
-          };
-          cases.Add(elseCase);
+        if (iteExpr.Els != null) {
+            if (iteExpr.Els is ITEExpr elseITEExpr) {
+                // Use UnaryOpExpr for negating conditions and ensure consistent type
+                Expression negatedCondition = new UnaryOpExpr(iteExpr.Test.tok, UnaryOpExpr.Opcode.Not, iteExpr.Test);
+                Expression newAccumulatedCondition = accumulatedCondition == null
+                    ? negatedCondition
+                    : new BinaryExpr(iteExpr.Test.tok, BinaryExpr.Opcode.And, accumulatedCondition, negatedCondition);
+                AnalyzeITEExpr(elseITEExpr, functionName, cases, newAccumulatedCondition);
+            } else {
+                // Handle the final "else" branch with explicit type wrapping
+                Expression negatedCondition = new UnaryOpExpr(iteExpr.Test.tok, UnaryOpExpr.Opcode.Not, iteExpr.Test);
+                Expression finalCondition = accumulatedCondition == null
+                    ? negatedCondition
+                    : new BinaryExpr(iteExpr.Test.tok, BinaryExpr.Opcode.And, accumulatedCondition, negatedCondition);
+
+                var elseCase = new FunctionCase {
+                    Condition = finalCondition,
+                    IsBaseCase = !ExprContainsFunctionCall(iteExpr.Els, functionName),
+                    RecursiveCall = FindRecursiveCall(iteExpr.Els, functionName)
+                };
+                cases.Add(elseCase);
+            }
         }
-      }
     }
+
     private FunctionCallExpr? FindRecursiveCall(Expression expr, string functionName) {
       if (expr is FunctionCallExpr funcCallExpr && funcCallExpr.Name == functionName) {
         return funcCallExpr;
@@ -145,21 +123,9 @@ namespace Microsoft.Dafny {
       return null;
     }
 
-    private List<string> GetDecreasedArguments(FunctionCallExpr? recursiveCall) {
-      var decreasedArgs = new List<string>();
-      if (recursiveCall != null) {
-        foreach (var arg in recursiveCall.Args) {
-          decreasedArgs.Add(PrintExpression(arg));
-        }
-      }
-      return decreasedArgs;
-    }
-
     private bool ExprContainsFunctionCall(Expression expr, string functionName) {
       if (expr is FunctionCallExpr funcCallExpr) {
-        if (funcCallExpr.Name == functionName) {
-          return true;
-        }
+        return funcCallExpr.Name == functionName;
       }
       foreach (var subExpr in expr.SubExpressions) {
         if (ExprContainsFunctionCall(subExpr, functionName)) {
@@ -176,7 +142,6 @@ namespace Microsoft.Dafny {
     private string GenerateStandardInductionProofSketch(Method method) {
       var sb = new StringBuilder();
 
-      // Find induction variables
       var inductionVariables = FindInductionVariables(method);
       if (inductionVariables.Count > 0) {
         var proofSketch = BuildProofSketch(method, inductionVariables);
@@ -191,21 +156,19 @@ namespace Microsoft.Dafny {
     private List<IVariable> FindInductionVariables(Method method) {
       var inductionVariables = new List<IVariable>();
 
-      // Look for a user-specified induction variable in the decreases clause
       if (method.Decreases.Expressions.Count > 0) {
-        var decreasesExpr = method.Decreases.Expressions.First(); // Assuming the first expression is relevant
+        var decreasesExpr = method.Decreases.Expressions.First();
         var decreasesVar = GetVariableFromExpression(decreasesExpr);
         if (decreasesVar != null) {
           inductionVariables.Add(decreasesVar);
-          return inductionVariables; // Use this as the induction variable if found
+          return inductionVariables;
         }
       }
 
-      // Fallback: Iterate over the parameters and look for the default induction variable (e.g., nat or datatype)
       foreach (var formal in method.Ins) {
         if (IsNatType(formal.Type) || formal.Type.IsDatatype) {
           inductionVariables.Add(formal);
-          break; // For now, pick the first suitable variable; can be improved later
+          break;
         }
       }
 
@@ -214,18 +177,14 @@ namespace Microsoft.Dafny {
 
     private IVariable? GetVariableFromExpression(Expression expr) {
       if (expr.Resolved is IdentifierExpr idExpr) {
-        return idExpr.Var; // Return the variable bound to the identifier
+        return idExpr.Var;
       }
-      // Handle other potential cases for expressions in the decreases clause, if necessary
       return null;
     }
 
     private bool IsNatType(Type type) {
       var userDefinedType = type as UserDefinedType;
-      if (userDefinedType != null && userDefinedType.Name == "nat") {
-        return true;
-      }
-      return false;
+      return userDefinedType != null && userDefinedType.Name == "nat";
     }
 
     private string BuildProofSketch(Method method, List<IVariable> inductionVariables) {
