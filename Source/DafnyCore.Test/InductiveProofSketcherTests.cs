@@ -48,7 +48,7 @@ module TestModule {
         Assert.Contains("TestMethod(pred);", proofSketch); // Recursive call
     }
 
-[Fact]
+    [Fact]
     public async Task TestFunctionBasedInduction() {
         var programText = @"
     module TestModule {
