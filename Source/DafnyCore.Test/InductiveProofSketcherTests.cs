@@ -19,10 +19,9 @@ module TestModule {
 
         var proofSketch = await SetupAndGenerateProofSketch(programText, "TestMethod");
 
-        // Assert that the proof sketch contains induction on n
-        Assert.Contains("if (n == 0)", proofSketch); // Base case
-        Assert.Contains("else", proofSketch);        // Recursive case
-        Assert.Contains("TestMethod(n - 1);", proofSketch); // Recursive call
+        Assert.Contains("if (n == 0)", proofSketch);
+        Assert.Contains("else", proofSketch);
+        Assert.Contains("TestMethod(n - 1);", proofSketch);
     }
 
     [Fact]
@@ -41,11 +40,10 @@ module TestModule {
 
         var proofSketch = await SetupAndGenerateProofSketch(programText, "TestMethod");
 
-        // Assert that the proof sketch contains a match on n
         Assert.Contains("match n {", proofSketch);
-        Assert.Contains("case Zero() => {", proofSketch); // Base case
-        Assert.Contains("case Succ(pred) => {", proofSketch); // Recursive case
-        Assert.Contains("TestMethod(pred);", proofSketch); // Recursive call
+        Assert.Contains("case Zero() => {", proofSketch);
+        Assert.Contains("case Succ(pred) => {", proofSketch);
+        Assert.Contains("TestMethod(pred);", proofSketch);
     }
 
     [Fact]
@@ -69,15 +67,10 @@ module TestModule {
 
         var proofSketch = await SetupAndGenerateProofSketch(programText, "IsEvenProperty");
 
-        // Assert that the proof sketch uses function-based induction
-        Assert.Contains("Function-based induction proof sketch", proofSketch);
-        Assert.Contains("if (n == 0)", proofSketch); // First base case
-        Assert.Contains("else if (n == 1)", proofSketch); // Second base case
-        Assert.Contains("// Base case:", proofSketch);
-        Assert.Contains("} else if (n >= 2)", proofSketch); // Inductive case condition
-        Assert.Contains("// Inductive case:", proofSketch);
-        Assert.Contains("IsEvenProperty(n - 2);", proofSketch); // Recursive lemma invocation
-        Assert.Contains("// Prove inductive step here.", proofSketch);
+        Assert.Contains("if (n == 0)", proofSketch);
+        Assert.Contains("else if (n == 1)", proofSketch);
+        Assert.Contains("} else if (n >= 2)", proofSketch);
+        Assert.Contains("IsEvenProperty(n - 2);", proofSketch);
     }
 
     private async Task<string> SetupAndGenerateProofSketch(string programText, string lemmaName) {

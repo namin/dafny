@@ -48,13 +48,12 @@ namespace Microsoft.Dafny {
     private string GenerateFunctionBasedInductionProofSketch(Method method, FunctionCallExpr functionCallExpr) {
       var sb = new StringBuilder();
 
-      sb.AppendLine("// Function-based induction proof sketch");
-      sb.AppendLine($"// Prove {method.Name} using induction on function {functionCallExpr.Name}");
-      sb.AppendLine();
+      sb.AppendLine($"{Indent(0)}// Rule induction on {functionCallExpr.Name}");
+      sb.AppendLine(Indent(0));
 
       var function = functionCallExpr.Function;
       if (function == null || function.Body == null) {
-        sb.AppendLine("// Unable to retrieve function definition.");
+        sb.AppendLine("{Indent(0)}// Unable to retrieve function definition.");
         return sb.ToString();
       }
 
@@ -62,7 +61,7 @@ namespace Microsoft.Dafny {
       var cases = GetFunctionCases(function);
 
       if (cases.Count == 0) {
-        sb.AppendLine("// No cases found in function definition.");
+        sb.AppendLine("{Indent(0)}// No cases found in function definition.");
         return sb.ToString();
       }
 
@@ -70,33 +69,22 @@ namespace Microsoft.Dafny {
       foreach (var functionCase in cases) {
         var condition = functionCase.Condition != null ? PrintExpression(functionCase.Condition) : "true";
         if (firstCase) {
-          sb.Append($"if ({condition}) {{\n");
+          sb.Append($"{Indent(0)}if ({condition}) {{\n");
           firstCase = false;
         } else {
-          sb.Append($"}} else if ({condition}) {{\n");
+          sb.Append($"{Indent(0)}}} else if ({condition}) {{\n");
         }
 
         if (functionCase.IsBaseCase) {
-          sb.AppendLine("    // Base case:");
-          sb.AppendLine("    // Prove base case here.");
         } else {
-          sb.AppendLine("    // Inductive case:");
-          sb.AppendLine();
-          // Generate recursive lemma invocation with decreased arguments
           var decreasedArgs = GetDecreasedArguments(functionCase.RecursiveCall);
-          sb.AppendLine($"    {method.Name}({string.Join(", ", decreasedArgs)});");
+          sb.AppendLine($"{Indent(1)}{method.Name}({string.Join(", ", decreasedArgs)});");
           sb.AppendLine();
-          sb.AppendLine("    // Prove inductive step here.");
         }
-        // Do not append closing brace here; it will be appended before the next else if
       }
 
-      // Close the last if/else if block
-      sb.AppendLine("} else {");
-      sb.AppendLine("    // Other cases if any.");
-      sb.AppendLine("}");
-      // Close the final brace
-      sb.AppendLine("}");
+      sb.AppendLine(Indent(0)+"} else {");
+      sb.AppendLine(Indent(0)+"}");
 
       return sb.ToString();
     }
@@ -129,6 +117,7 @@ namespace Microsoft.Dafny {
         if (iteExpr.Els is ITEExpr elseITEExpr) {
           AnalyzeITEExpr(elseITEExpr, functionName, cases);
         } else {
+          // TODO: this seems like a bug
           // Manually create the condition 'n >= 2'
           var nIdentifier = new IdentifierExpr(iteExpr.Test.tok, "n");
           var twoLiteral = new LiteralExpr(iteExpr.Test.tok, 2);
@@ -186,7 +175,6 @@ namespace Microsoft.Dafny {
 
     private string GenerateStandardInductionProofSketch(Method method) {
       var sb = new StringBuilder();
-      sb.AppendLine("// Standard induction proof sketch");
 
       // Find induction variables
       var inductionVariables = FindInductionVariables(method);
@@ -245,12 +233,14 @@ namespace Microsoft.Dafny {
       var inductionVar = inductionVariables[0];  // Assuming the first variable is the induction variable
 
       if (inductionVar.Type.IsDatatype) {
+        sb.AppendLine($"{Indent(0)}// Structural induction on {inductionVar.Name}");
+        sb.AppendLine(Indent(0));
         var datatypeDecl = inductionVar.Type.AsDatatype;
-        sb.AppendLine($"match {inductionVar.Name} {{");
+        sb.AppendLine($"{Indent(0)}match {inductionVar.Name} {{");
 
         foreach (var ctor in datatypeDecl.Ctors) {
           var formalParams = string.Join(", ", ctor.Formals.Select(f => f.Name));
-          sb.AppendLine($"  case {ctor.Name}({formalParams}) => {{");
+          sb.AppendLine($"{Indent(1)}case {ctor.Name}({formalParams}) => {{");
 
           // Collect the recursive parameters (fields that are of the same datatype as the inductive variable)
           var recursiveFields = ctor.Formals
@@ -258,23 +248,22 @@ namespace Microsoft.Dafny {
               .Select(f => f.Name);
 
           foreach (var recursiveField in recursiveFields) {
-            sb.AppendLine(recursiveMethodCall(method, inductionVar, recursiveField));
+            sb.AppendLine(recursiveMethodCall(2, method, inductionVar, recursiveField));
           }
 
-          sb.AppendLine($"    // Prove case for {ctor.Name}");
-          sb.AppendLine($"  }}");
+          sb.AppendLine($"{Indent(1)}}}");
         }
 
-        sb.AppendLine($"}}");
+        sb.AppendLine($"{Indent(0)}}}");
       } else if (IsNatType(inductionVar.Type)) {
-        sb.AppendLine($"if ({inductionVar.Name} == 0) {{");
-        sb.AppendLine($"  // Base case for {inductionVar.Name}");
-        sb.AppendLine($"}} else {{");
-        sb.AppendLine(recursiveMethodCall(method, inductionVar, $"{inductionVar.Name} - 1"));
-        sb.AppendLine($"  // Prove inductive step here.");
-        sb.AppendLine($"}}");
+        sb.AppendLine($"{Indent(0)}// Natural induction on {inductionVar.Name}");
+        sb.AppendLine();
+        sb.AppendLine($"{Indent(0)}if ({inductionVar.Name} == 0) {{");
+        sb.AppendLine($"{Indent(0)}}} else {{");
+        sb.AppendLine(recursiveMethodCall(1, method, inductionVar, $"{inductionVar.Name} - 1"));
+        sb.AppendLine($"{Indent(0)}}}");
       } else {
-        sb.AppendLine("// Cannot generate induction proof sketch for this type.");
+        sb.AppendLine(Indent(0)+"// Cannot generate induction proof sketch for this type.");
       }
 
       return sb.ToString();
@@ -289,8 +278,8 @@ namespace Microsoft.Dafny {
       }));
     }
 
-    private string recursiveMethodCall(Method method, IVariable inductionVar, string decreasedArg) {
-      return ($"  {method.Name}({methodParams(method, inductionVar, decreasedArg)});");
+    private string recursiveMethodCall(int i, Method method, IVariable inductionVar, string decreasedArg) {
+      return ($"{Indent(i)}{method.Name}({methodParams(method, inductionVar, decreasedArg)});");
     }
   }
 }
