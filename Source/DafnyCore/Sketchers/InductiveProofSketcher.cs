@@ -52,7 +52,7 @@ namespace Microsoft.Dafny {
     private string GenerateFunctionBasedInductionProofSketch(Method method, FunctionCallExpr functionCallExpr) {
       var sb = new StringBuilder();
       sb.AppendLine($"{Indent(0)}// Inductive proof using rule induction");
-      sb.AppendLine($"{Indent(0)}// Function to follow: {functionCallExpr.Function.Name}");
+      sb.AppendLine($"{Indent(0)}// following function: {functionCallExpr.Function.Name}");
 
       var followedFunction = functionCallExpr.Function;
       if (followedFunction == null || followedFunction.Body == null) {
