@@ -275,7 +275,6 @@ namespace Microsoft.Dafny {
 
     private string GenerateStandardInductionProofSketch(Method method) {
       var sb = new StringBuilder();
-      sb.AppendLine($"{Indent(0)}// Structural induction on {method.Name}");
 
       var inductionVariables = FindInductionVariables(method);
       if (inductionVariables.Count > 0) {
