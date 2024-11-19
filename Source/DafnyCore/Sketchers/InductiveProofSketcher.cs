@@ -115,22 +115,39 @@ namespace Microsoft.Dafny {
             var functionCallExpr = (FunctionCallExpr)expr;
             var recursiveEnv = MapFunctionParametersToArguments(function, functionCallExpr);
             HandleRecursiveCall(sb, indent, method, env, recursiveEnv);
-        } if (expr is NestedMatchExpr nestedMatchExpr) {
+        } else if (expr is NestedMatchExpr nestedMatchExpr) {
             sb.AppendLine($"{Indent(indent)}match {PrintExpression(nestedMatchExpr.Source)} {{");
             foreach (var caseStmt in nestedMatchExpr.Cases) {
-                // Extract the pattern
                 var pattern = ExtractPattern(caseStmt);
-
-                // Extract variables and extend environment
                 var variables = ExtractVariables(caseStmt);
                 var extendedEnv = ExtendEnvironment(env, variables);
-
-                // Generate code for the case
                 sb.AppendLine($"{Indent(indent + 1)}case {pattern} => {{");
+                foreach (var subExpr in caseStmt.Body.SubExpressions) {
+                    if (subExpr is LetExpr letExpr) {
+                        var variableMap = ExtractVariables(letExpr);
+                        foreach (var kvp in variableMap) {
+                            sb.AppendLine($"{Indent(indent + 2)}var {kvp.Key.Name} := {PrintExpression(kvp.Value)};");
+                            sb.AppendLine($"{Indent(indent + 2)}//Recursive handling of {kvp.Value} ({kvp.Value.GetType()})");
+                            FollowExpr(sb, indent + 2, kvp.Value, method, function, extendedEnv);
+                        }
+                    }
+                }
                 FollowExpr(sb, indent + 2, caseStmt.Body, method, function, extendedEnv);
                 sb.AppendLine($"{Indent(indent + 1)}}}");
             }
             sb.AppendLine($"{Indent(indent)}}}");
+        } else if (expr is LetExpr letExpr) {
+            var variableMap = ExtractVariables(letExpr);
+            var extendedEnv = new Dictionary<string, IVariable>(env);
+            foreach (var kvp in variableMap) {
+                extendedEnv[kvp.Key.Name] = kvp.Key;
+            }
+            foreach (var kvp in variableMap) {
+                sb.AppendLine($"{Indent(indent)}var {kvp.Key.Name} := {PrintExpression(kvp.Value)};");
+                sb.AppendLine($"{Indent(indent + 2)}//Recursive handling of {kvp.Value} ({kvp.Value.GetType()})");
+                FollowExpr(sb, indent + 2, kvp.Value, method, function, extendedEnv);
+            }
+            FollowExpr(sb, indent, letExpr.Body, method, function, extendedEnv);
         } else if (expr is ITEExpr iteExpr) {
             var firstIndent = noIndent ? "" : Indent(indent);
             sb.AppendLine($"{firstIndent}if ({PrintExpression(iteExpr.Test)}) {{");
@@ -145,7 +162,7 @@ namespace Microsoft.Dafny {
                 sb.AppendLine($"{Indent(indent)}}}");
             }
         } else {
-          //sb.AppendLine($"{Indent(indent)}// Ignoring {expr} ({expr.GetType()})");
+          sb.AppendLine($"{Indent(indent)}// Ignoring {expr} ({expr.GetType()})");
           foreach (var subExpr in expr.SubExpressions) {
               FollowExpr(sb, indent, subExpr, method, function, env);
           }
@@ -166,9 +183,23 @@ namespace Microsoft.Dafny {
         if (caseExpr.Pat is IdPattern idPattern && idPattern.BoundVar != null) {
             variables.Add(idPattern.BoundVar);
         }
-        // Add additional cases if `Pat` can have other variable-binding patterns
 
         return variables;
+    }
+    private Dictionary<IVariable, Expression> ExtractVariables(LetExpr letExpr) {
+        var variableMap = new Dictionary<IVariable, Expression>();
+
+        for (int i = 0; i < letExpr.LHSs.Count; i++) {
+            var casePattern = letExpr.LHSs[i];
+            var rhs = letExpr.RHSs[i];
+
+            // Traverse the CasePattern to extract all BoundVars
+            foreach (var boundVar in casePattern.Vars) {
+                variableMap[boundVar] = rhs;
+            }
+        }
+
+        return variableMap;
     }
 
     private Dictionary<string, IVariable> ExtendEnvironment(Dictionary<string, IVariable> env, List<IVariable> caseVars) {
