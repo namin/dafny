@@ -121,9 +121,9 @@ namespace Microsoft.Dafny {
                 var pattern = ExtractPattern(caseStmt);
                 var variables = ExtractVariables(caseStmt);
                 var extendedEnv = ExtendEnvironment(env, variables);
-                sb.AppendLine($"{Indent(indent + 1)}case {pattern} => {{");
-                FollowExpr(sb, indent + 2, caseStmt.Body, method, function, extendedEnv);
-                sb.AppendLine($"{Indent(indent + 1)}}}");
+                sb.AppendLine($"{Indent(indent+1)}case {pattern} => {{");
+                FollowExpr(sb, indent+2, caseStmt.Body, method, function, extendedEnv);
+                sb.AppendLine($"{Indent(indent+1)}}}");
             }
             sb.AppendLine($"{Indent(indent)}}}");
         } else if (expr is LetExpr letExpr) {
@@ -135,7 +135,7 @@ namespace Microsoft.Dafny {
             foreach (var kvp in variableMap) {
                 sb.AppendLine($"{Indent(indent)}var {kvp.Key.Name} := {PrintExpression(kvp.Value)};");
                 //sb.AppendLine($"{Indent(indent + 2)}//DEBUG: Recursive handling of {kvp.Value} ({kvp.Value.GetType()})");
-                FollowExpr(sb, indent + 2, kvp.Value, method, function, extendedEnv);
+                FollowExpr(sb, indent, kvp.Value, method, function, extendedEnv);
             }
             FollowExpr(sb, indent, letExpr.Body, method, function, extendedEnv);
         } else if (expr is ITEExpr iteExpr) {
