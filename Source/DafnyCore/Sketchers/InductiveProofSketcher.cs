@@ -61,21 +61,21 @@ namespace Microsoft.Dafny {
       }
 
       var map = MapFunctionParametersToArguments(followedFunction, functionCallExpr);
-      sb.AppendLine($"{Indent(0)}// Parameter to Argument Map:");
+      /*sb.AppendLine($"{Indent(0)}//DEBUG: Parameter to Argument Map:");
       foreach (var kvp in map) {
-          sb.AppendLine($"{Indent(0)}// {kvp.Key.Name} => {PrintExpression(kvp.Value)} ({kvp.Value.GetType()})");
-      }
+          sb.AppendLine($"{Indent(0)}//DEBUG: {kvp.Key.Name} => {PrintExpression(kvp.Value)} ({kvp.Value.GetType()})");
+      }*/
 
       var env = ReverseMapForVarValues(map);
-      sb.AppendLine($"{Indent(0)}// Env:");
+      /*sb.AppendLine($"{Indent(0)}//DEBUG: Env:");
       foreach (var kvp in env) {
-          sb.AppendLine($"{Indent(0)}// {kvp.Key} => {kvp.Value.Name}");
-      }
+          sb.AppendLine($"{Indent(0)}//DEBUG: {kvp.Key} => {kvp.Value.Name}");
+      }*/
   
-      sb.AppendLine($"{Indent(0)}// followed function body: {followedFunction.Body}");
+      //sb.AppendLine($"{Indent(0)}//DEBUG: followed function body: {followedFunction.Body}");
       var substitutedBody = SubstituteExpression(followedFunction.Body, map);
-      sb.AppendLine($"{Indent(0)}// Substituted Function Body:");
-      sb.AppendLine($"{Indent(0)}// {PrintExpression(substitutedBody)}");
+      //sb.AppendLine($"{Indent(0)}//DEBUG: Substituted Function Body:");
+      //sb.AppendLine($"{Indent(0)}//DEBUG: {PrintExpression(substitutedBody)}");
 
       FollowExpr(sb, 0, substitutedBody, method, followedFunction, env);
 
@@ -122,16 +122,6 @@ namespace Microsoft.Dafny {
                 var variables = ExtractVariables(caseStmt);
                 var extendedEnv = ExtendEnvironment(env, variables);
                 sb.AppendLine($"{Indent(indent + 1)}case {pattern} => {{");
-                foreach (var subExpr in caseStmt.Body.SubExpressions) {
-                    if (subExpr is LetExpr letExpr) {
-                        var variableMap = ExtractVariables(letExpr);
-                        foreach (var kvp in variableMap) {
-                            sb.AppendLine($"{Indent(indent + 2)}var {kvp.Key.Name} := {PrintExpression(kvp.Value)};");
-                            sb.AppendLine($"{Indent(indent + 2)}//Recursive handling of {kvp.Value} ({kvp.Value.GetType()})");
-                            FollowExpr(sb, indent + 2, kvp.Value, method, function, extendedEnv);
-                        }
-                    }
-                }
                 FollowExpr(sb, indent + 2, caseStmt.Body, method, function, extendedEnv);
                 sb.AppendLine($"{Indent(indent + 1)}}}");
             }
@@ -144,7 +134,7 @@ namespace Microsoft.Dafny {
             }
             foreach (var kvp in variableMap) {
                 sb.AppendLine($"{Indent(indent)}var {kvp.Key.Name} := {PrintExpression(kvp.Value)};");
-                sb.AppendLine($"{Indent(indent + 2)}//Recursive handling of {kvp.Value} ({kvp.Value.GetType()})");
+                //sb.AppendLine($"{Indent(indent + 2)}//DEBUG: Recursive handling of {kvp.Value} ({kvp.Value.GetType()})");
                 FollowExpr(sb, indent + 2, kvp.Value, method, function, extendedEnv);
             }
             FollowExpr(sb, indent, letExpr.Body, method, function, extendedEnv);
@@ -162,7 +152,7 @@ namespace Microsoft.Dafny {
                 sb.AppendLine($"{Indent(indent)}}}");
             }
         } else {
-          sb.AppendLine($"{Indent(indent)}// Ignoring {expr} ({expr.GetType()})");
+          //sb.AppendLine($"{Indent(indent)}//DEBUG: Ignoring {expr} ({expr.GetType()})");
           foreach (var subExpr in expr.SubExpressions) {
               FollowExpr(sb, indent, subExpr, method, function, env);
           }
