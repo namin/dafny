@@ -49,6 +49,7 @@ public class InductiveProofSketcherTests {
 
         var proofSketch = await SetupAndGenerateProofSketch(programText, "TestMethod");
 
+        Assert.Contains("match t {\n", proofSketch);
         Assert.Contains("TestMethod(f, c)", proofSketch);
         Assert.Contains("TestMethod(arg, c)", proofSketch);
         Assert.Contains("TestMethod(body, c[x := T])", proofSketch);

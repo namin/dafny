@@ -72,6 +72,7 @@ namespace Microsoft.Dafny {
           sb.AppendLine($"{Indent(0)}// {kvp.Key} => {kvp.Value.Name}");
       }
   
+      sb.AppendLine($"{Indent(0)}// followed function body: {followedFunction.Body}");
       var substitutedBody = SubstituteExpression(followedFunction.Body, map);
       sb.AppendLine($"{Indent(0)}// Substituted Function Body:");
       sb.AppendLine($"{Indent(0)}// {PrintExpression(substitutedBody)}");
@@ -114,6 +115,22 @@ namespace Microsoft.Dafny {
             var functionCallExpr = (FunctionCallExpr)expr;
             var recursiveEnv = MapFunctionParametersToArguments(function, functionCallExpr);
             HandleRecursiveCall(sb, indent, method, env, recursiveEnv);
+        } if (expr is NestedMatchExpr nestedMatchExpr) {
+            sb.AppendLine($"{Indent(indent)}match {PrintExpression(nestedMatchExpr.Source)} {{");
+            foreach (var caseStmt in nestedMatchExpr.Cases) {
+                // Extract the pattern
+                var pattern = ExtractPattern(caseStmt);
+
+                // Extract variables and extend environment
+                var variables = ExtractVariables(caseStmt);
+                var extendedEnv = ExtendEnvironment(env, variables);
+
+                // Generate code for the case
+                sb.AppendLine($"{Indent(indent + 1)}case {pattern} => {{");
+                FollowExpr(sb, indent + 2, caseStmt.Body, method, function, extendedEnv);
+                sb.AppendLine($"{Indent(indent + 1)}}}");
+            }
+            sb.AppendLine($"{Indent(indent)}}}");
         } else if (expr is ITEExpr iteExpr) {
             var firstIndent = noIndent ? "" : Indent(indent);
             sb.AppendLine($"{firstIndent}if ({PrintExpression(iteExpr.Test)}) {{");
@@ -127,21 +144,41 @@ namespace Microsoft.Dafny {
                 FollowExpr(sb, indent + 1, iteExpr.Els, method, function, env);
                 sb.AppendLine($"{Indent(indent)}}}");
             }
-        } else if (expr is MatchExpr matchExpr) {
-            sb.AppendLine($"{Indent(indent)}match {PrintExpression(matchExpr.Source)} {{");
-            foreach (var caseExpr in matchExpr.Cases) {
-                // TODO
-                sb.AppendLine($"{Indent(indent + 1)}case {caseExpr.Arguments} => {{");
-                FollowExpr(sb, indent + 2, caseExpr.Body, method, function, env);
-                sb.AppendLine($"{Indent(indent + 1)}}}");
-            }
-            sb.AppendLine($"{Indent(indent)}}}");
         } else {
+          //sb.AppendLine($"{Indent(indent)}// Ignoring {expr} ({expr.GetType()})");
           foreach (var subExpr in expr.SubExpressions) {
               FollowExpr(sb, indent, subExpr, method, function, env);
           }
         }
     }
+  
+    private string ExtractPattern(NestedMatchCaseExpr caseExpr) {
+        if (caseExpr.Pat != null) {
+            // Convert the pattern into a readable form
+            return caseExpr.Pat.ToString();
+        }
+        return "<unknown-pattern>";
+    }
+
+    private List<IVariable> ExtractVariables(NestedMatchCaseExpr caseExpr) {
+        var variables = new List<IVariable>();
+
+        if (caseExpr.Pat is IdPattern idPattern && idPattern.BoundVar != null) {
+            variables.Add(idPattern.BoundVar);
+        }
+        // Add additional cases if `Pat` can have other variable-binding patterns
+
+        return variables;
+    }
+
+    private Dictionary<string, IVariable> ExtendEnvironment(Dictionary<string, IVariable> env, List<IVariable> caseVars) {
+        var newEnv = new Dictionary<string, IVariable>(env);
+        foreach (var variable in caseVars) {
+            newEnv[variable.Name] = variable;
+        }
+        return newEnv;
+    }
+  
     private bool ExprIsRecursiveCall(Expression expr, string functionName) {
       return expr is FunctionCallExpr funcCall && funcCall.Name == functionName;
     }
