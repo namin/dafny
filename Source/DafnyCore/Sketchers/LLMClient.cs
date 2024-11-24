@@ -7,10 +7,12 @@ namespace Microsoft.Dafny {
     public class LLMClient: ILLMClient {
         private readonly ChatClient _client;
         public LLMClient() {
-            var model = "qwen2.5-coder";
-            var apiKey = new ApiKeyCredential("ollama");
+            var base_url = Environment.GetEnvironmentVariable("OPENAI_BASE_URL") ?? "http://localhost";
+            var port = Environment.GetEnvironmentVariable("OPENAI_PORT") ?? "11434"; 
+            var model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "qwen2.5-coder";
+            var apiKey = new ApiKeyCredential(Environment.GetEnvironmentVariable("OPENAI_PASSWORD") ?? "ollama");
             var options = new OpenAI.OpenAIClientOptions {
-                Endpoint = new Uri("http://localhost:11434/v1")
+                Endpoint = new Uri($"{base_url}:{port}/v1")
             };
             _client = new ChatClient(model, apiKey, options);
         }
