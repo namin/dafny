@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Dafny.LanguageServer.Workspace;
 using Microsoft.Dafny.LanguageServer.Workspace.ChangeProcessors;
+using System.Security.AccessControl;
 
 namespace Microsoft.Dafny.LanguageServer.Language {
   /// <summary>
@@ -48,7 +49,9 @@ namespace Microsoft.Dafny.LanguageServer.Language {
           engine, compilation
           ))
         .AddSingleton<ISymbolTableFactory, SymbolTableFactory>()
-        .AddSingleton<IGhostStateDiagnosticCollector, GhostStateDiagnosticCollector>();
+        .AddSingleton<IGhostStateDiagnosticCollector, GhostStateDiagnosticCollector>()
+        .AddSingleton<ILLMClient, LLMClient>()
+        .AddSingleton<Handlers.Custom.AiCompletionHandler>(); 
     }
 
     private static IProgramVerifier CreateVerifier(IServiceProvider serviceProvider) {

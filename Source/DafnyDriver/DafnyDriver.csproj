@@ -5,7 +5,7 @@
       <AssemblyName>DafnyDriver</AssemblyName>
       <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
       <DefineConstants>TRACE</DefineConstants>
-      <TargetFramework>net6.0</TargetFramework>
+      <TargetFramework>net8.0</TargetFramework>
 <RollForward>Major</RollForward>
       <OutputPath>..\..\Binaries\</OutputPath>
       <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
@@ -28,7 +28,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.TestPlatform.Extensions.TrxLogger" Version="17.9.0" />
     <PackageReference Include="Microsoft.TestPlatform.TestHost" Version="17.9.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
       
     <!-- Locking down versions that would otherwise be downgraded -->
     <PackageReference Include="System.Security.Principal.Windows" Version="4.6.0" />
