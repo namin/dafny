@@ -13,7 +13,7 @@ namespace Microsoft.Dafny {
     /// <param name="method">The method containing the gap.</param>
     /// <param name="lineNumber">The line number of the gap.</param>
     /// <returns>A string containing assertions for implicit conditions.</returns>
-    override public string GenerateProofSketch(Method method, int lineNumber) {
+    override public string GenerateProofSketch(Method method, int? lineNumber) {
       var sb = new StringBuilder();
       sb.AppendLine("");
 
@@ -37,7 +37,7 @@ namespace Microsoft.Dafny {
     /// <summary>
     /// Collects pre-gap conditions based on control flow up to a specified line.
     /// </summary>
-    private List<string> CollectPreGapConditions(Method method, int lineNumber) {
+    private List<string> CollectPreGapConditions(Method method, int? lineNumber) {
       var conditions = new List<string>();
 
       // Step 1: Add method preconditions
@@ -65,7 +65,7 @@ namespace Microsoft.Dafny {
     /// <summary>
     /// Collects post-gap goals based on following assertions and method postconditions.
     /// </summary>
-    private List<string> CollectPostGapGoals(Method method, int lineNumber) {
+    private List<string> CollectPostGapGoals(Method method, int? lineNumber) {
       var goals = new List<string>();
 
       // Step 1: Add method postconditions if near the end of the method
@@ -89,7 +89,7 @@ namespace Microsoft.Dafny {
     /// <summary>
     /// Traverses method body up to the specified line number to collect statements.
     /// </summary>
-    private IEnumerable<Statement> GetStatementsUpToLine(BlockStmt body, int lineNumber) {
+    private IEnumerable<Statement> GetStatementsUpToLine(BlockStmt body, int? lineNumber) {
       // Example pseudo-code to collect all statements up to the specified line number
       var statements = new List<Statement>();
       foreach (var stmt in body.Body) {
@@ -104,7 +104,7 @@ namespace Microsoft.Dafny {
     /// <summary>
     /// Gets the statement immediately after a specified line, if any.
     /// </summary>
-    private Statement GetStatementAfterLine(BlockStmt body, int lineNumber) {
+    private Statement GetStatementAfterLine(BlockStmt body, int? lineNumber) {
       foreach (var stmt in body.Body) {
         if (stmt.Tok.line > lineNumber) {
           return stmt;

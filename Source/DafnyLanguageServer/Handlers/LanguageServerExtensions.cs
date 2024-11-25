@@ -32,9 +32,8 @@ namespace Microsoft.Dafny.LanguageServer.Handlers {
         .WithHandler<DafnyFormattingHandler>()
         .WithHandler<VerificationHandler>()
         .WithHandler<DafnyWorkspaceSymbolHandler>()
-        .WithHandler<DafnyProofSketchHandler>()
-        .WithHandler<DafnyProofSketchTypeListHandler>()
-        .WithHandler<AiCompletionHandler>();
+        .WithHandler<DafnySketchHandler>()
+        .WithHandler<DafnySketchTypeListHandler>();
     }
   }
 }

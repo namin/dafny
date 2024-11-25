@@ -1,10 +1,14 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Microsoft.Dafny;
-public abstract class ProofSketcher : InductionRewriter {
+public abstract class ProofSketcher : InductionRewriter, ISketcher {
   public ProofSketcher(ErrorReporter reporter) : base(reporter) {
   }
-  public abstract string GenerateProofSketch(Method method, int lineNumber);
+  public Task<SketchResponse> GenerateSketch(SketchRequest input) {
+    return Task.FromResult(new SketchResponse(GenerateProofSketch(input.Method, input.LineNumber)));
+  }
+  public abstract string GenerateProofSketch(Method method, int? lineNumber);
   public static readonly List<string> Types = new List<string> { "induction", "assertions" };
 
   public static ProofSketcher? Create(string sketchType, ErrorReporter reporter)

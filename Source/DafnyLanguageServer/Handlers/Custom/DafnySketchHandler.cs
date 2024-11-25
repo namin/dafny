@@ -3,34 +3,37 @@ using System.Threading.Tasks;
 using Microsoft.Dafny.LanguageServer.Workspace;
 using Microsoft.Extensions.Logging;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
+using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 
 namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
-  public class DafnyProofSketchHandler : IProofSketchHandler {
-    private readonly ILogger<DafnyProofSketchHandler> logger;
+  public class DafnySketchHandler : ISketchHandler {
+    private readonly ILogger<DafnySketchHandler> logger;
     private readonly IProjectDatabase projects;
+    private readonly ILanguageServerFacade _languageServer;
 
-    public DafnyProofSketchHandler(ILogger<DafnyProofSketchHandler> logger, IProjectDatabase projects) {
+    public DafnySketchHandler(ILogger<DafnySketchHandler> logger, IProjectDatabase projects, ILanguageServerFacade languageServer) {
       this.logger = logger;
       this.projects = projects;
+      this._languageServer = languageServer;
     }
 
-    public async Task<ProofSketchResponse> Handle(ProofSketchParams request, CancellationToken cancellationToken) {
+    public async Task<SketchResponse> Handle(SketchParams request, CancellationToken cancellationToken) {
       var projectManager = await projects.GetProjectManager(request.TextDocument);
       var errorMsg = "";
       if (projectManager == null) {
         errorMsg += "\n // Couldn't find error manager for requested document: " + request.TextDocument.Uri;
       } else {
-        // Use GetStateAfterResolutionAsync to get the latest resolved state
+        // Get the latest resolved state
         var state = await projectManager.GetStateAfterResolutionAsync();
 
         if (state != null && state.ResolvedProgram is Program resolvedProgram) {
           var reporter = new ConsoleErrorReporter(projectManager.Compilation.Options);
           var method = GetMethodFromPosition(resolvedProgram, request.Position);
           if (method != null) {
-            var sketcher = ProofSketcher.Create(request.SketchType, reporter);
+            var sketcher = ISketcher.Create(request.SketchType, reporter);
             if (sketcher != null) {
-              var sketch = sketcher.GenerateProofSketch(method, request.Position.Line);
-              return new ProofSketchResponse { Sketch = sketch };    
+              return await sketcher.GenerateSketch(new SketchRequest(
+                resolvedProgram, request.Content, method, request.SketchType, request.Position.Line, request.Prompt));
             } else {
               errorMsg += $"\n// No sketcher found";
             }
@@ -39,7 +42,7 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
           }
         }
       }
-      return new ProofSketchResponse { Sketch = "\n// Error: no proof sketch generated" + errorMsg + "\n"}; 
+      return new SketchResponse("\n// Error: no proof sketch generated" + errorMsg + "\n"); 
     }
     private Method GetMethodFromPosition(Program resolvedProgram, Position position) {
       // Accessing the DefaultModuleDefinition from the resolvedProgram

@@ -15,9 +15,9 @@ namespace Microsoft.Dafny
 
             string prompt = args[0];
 
-            var client = new LLMClient();
+            var client = new LLMClient(null);
 
-            string response = await client.GenerateResponseAsync(prompt);
+            string response = await client.GenerateResponse(prompt);
             Console.WriteLine(response);
         }
     }

@@ -49,9 +49,7 @@ namespace Microsoft.Dafny.LanguageServer.Language {
           engine, compilation
           ))
         .AddSingleton<ISymbolTableFactory, SymbolTableFactory>()
-        .AddSingleton<IGhostStateDiagnosticCollector, GhostStateDiagnosticCollector>()
-        .AddSingleton<ILLMClient, LLMClient>()
-        .AddSingleton<Handlers.Custom.AiCompletionHandler>(); 
+        .AddSingleton<IGhostStateDiagnosticCollector, GhostStateDiagnosticCollector>();
     }
 
     private static IProgramVerifier CreateVerifier(IServiceProvider serviceProvider) {

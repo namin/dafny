@@ -8,8 +8,8 @@
     public const string VerificationSymbolStatus = "dafny/textDocument/symbolStatus";
 
     // Requests from client to server
-    public const string proofSketch = "dafny/proofSketch";
-    public const string proofSketchTypeList = "dafny/proofSketchTypeList";
+    public const string sketch = "dafny/sketch";
+    public const string sketchTypeList = "dafny/sketchTypeList";
     public const string aiCompletion = "dafny/aiCompletion";
     public const string CounterExample = "dafny/counterExample";
     public const string VerifySymbol = "dafny/textDocument/verifySymbol";
