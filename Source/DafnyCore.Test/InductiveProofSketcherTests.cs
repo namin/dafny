@@ -179,7 +179,7 @@ module TestModule {
         Assert.NotNull(lemma);
 
         var sketcher = new InductiveProofSketcher(reporter);
-        var proofSketch = sketcher.GenerateProofSketch(lemma, 0);
+        var proofSketch = sketcher.GenerateProofSketch(program, lemma, 0);
         return proofSketch;
     }
 

@@ -15,7 +15,7 @@ namespace Microsoft.Dafny {
       this.reporter = reporter;
     }
 
-    public override string GenerateProofSketch(Method method, int? lineNumber) {
+    public override string GenerateProofSketch(Program program, Method method, int? lineNumber) {
       // Determine if function-based induction should be applied
       var functionCallExpr = RequiresCallsFunction(method);
       if (functionCallExpr != null) {

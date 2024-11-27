@@ -13,7 +13,7 @@ namespace Microsoft.Dafny {
     /// <param name="method">The method containing the gap.</param>
     /// <param name="lineNumber">The line number of the gap.</param>
     /// <returns>A string containing assertions for implicit conditions.</returns>
-    override public string GenerateProofSketch(Method method, int? lineNumber) {
+    override public string GenerateProofSketch(Program program, Method method, int? lineNumber) {
       var sb = new StringBuilder();
       sb.AppendLine("");
 
