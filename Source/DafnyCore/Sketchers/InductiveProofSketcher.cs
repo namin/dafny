@@ -26,14 +26,25 @@ namespace Microsoft.Dafny {
     }
 
     private FunctionCallExpr? RequiresCallsFunction(Method method) {
-      FunctionCallExpr? functionCallExpr = null;
-      foreach (var req in method.Req) {
-        functionCallExpr = FindFunctionCallExpr(req.E);
-        if (functionCallExpr != null) {
-          return functionCallExpr;
+        FunctionCallExpr? fallbackFunctionCallExpr = null;
+
+        foreach (var req in method.Req) {
+            var functionCallExpr = FindFunctionCallExpr(req.E);
+            if (functionCallExpr != null) {
+                // Check for the {:induction_target} attribute
+                if (req.Attributes != null && req.Attributes.Name == "induction_target") {
+                    return functionCallExpr; // Immediately prioritize and return
+                }
+
+                // Save the first valid function call expression as a fallback
+                if (fallbackFunctionCallExpr == null) {
+                    fallbackFunctionCallExpr = functionCallExpr;
+                }
+            }
         }
-      }
-      return null;
+
+        // Return the fallback if no prioritized clause is found
+        return fallbackFunctionCallExpr;
     }
 
     private FunctionCallExpr? FindFunctionCallExpr(Expression expr) {
