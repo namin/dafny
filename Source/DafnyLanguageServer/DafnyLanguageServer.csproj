@@ -36,6 +36,7 @@
     <PackageReference Include="Serilog.Sinks.Debug" Version="2.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
     <PackageReference Include="System.ClientModel" Version="1.2.1.0" />
+    <PackageReference Include="System.Runtime.Handles" Version="4.3.0" />
 
     <!-- The following packages are referenced explicitely since Serilog references older versions than required (nuget prevents the downgrade). -->
     <PackageReference Include="System.Collections" Version="4.3.0" />

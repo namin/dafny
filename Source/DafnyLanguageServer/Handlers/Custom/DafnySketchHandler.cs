@@ -61,7 +61,7 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
         foreach (var topLevelDecl in defaultModule.TopLevelDecls) {
           if (topLevelDecl is TopLevelDeclWithMembers classDecl) {
             foreach (var member in classDecl.Members) {
-              if (member is Method method && IsPositionInRange(method.tok, method.EndToken, position)) {
+              if (member is Method method && IsPositionInRange(method.Tok, method.EndToken, position)) {
                 return method;
               }
             }
@@ -72,7 +72,7 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
     }
 
     // Adjust to check if position is between start and end tokens
-    private bool IsPositionInRange(IToken startToken, IToken endToken, Position position) {
+    private bool IsPositionInRange(IOrigin startToken, IOrigin endToken, Position position) {
       return position.Line >= startToken.line && position.Line <= endToken.line &&
             (position.Line != startToken.line || position.Character >= startToken.col) &&
             (position.Line != endToken.line || position.Character <= endToken.col);
@@ -87,8 +87,8 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
       var diagnosticEndChar = diagnostic.Range.End.Character;
 
       // Extract the method's start and end range
-      var methodStartLine = method.tok.line;
-      var methodStartChar = method.tok.col;
+      var methodStartLine = method.Tok.line;
+      var methodStartChar = method.Tok.col;
       var methodEndLine = method.EndToken.line;
       var methodEndChar = method.EndToken.col;
 

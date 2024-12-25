@@ -8,7 +8,7 @@ namespace Microsoft.Dafny {
         public LemmaCallSketcher(ErrorReporter reporter) : base(reporter) { }
 
         private StringBuilder? sb = null;
-        private void reportError(IToken tok, string msg) {
+        private void reportError(IOrigin tok, string msg) {
             if (sb != null) {
                 sb.AppendLine("// " + tok + ": "+ msg);
             }

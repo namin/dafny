@@ -14,10 +14,12 @@ public class CommonOptionBag {
 
   public static void EnsureStaticConstructorHasRun() { }
 
-  public static readonly Option<bool> ProgressOption =
-    new("--progress", "While verifying, output information that helps track progress") {
-      IsHidden = true
-    };
+  public enum ProgressLevel { None, Symbol, VerificationJobs }
+  public static readonly Option<ProgressLevel> ProgressOption =
+    new("--progress", $"While verifying, output information that helps track progress. " +
+                      $"Use '{ProgressLevel.Symbol}' to show progress across symbols such as methods and functions. " +
+                      $"Verification of a symbol is usually split across several jobs. " +
+                      $"Use {ProgressLevel.VerificationJobs} to additionally show progress across jobs.");
 
   public static readonly Option<string> LogLocation =
     new("--log-location", "Sets the directory where to store log files") {
@@ -364,6 +366,10 @@ Change the default opacity of functions.
 `opaque` means functions are always opaque so the opaque keyword is not needed, and functions must be revealed everywhere needed for a proof.".TrimStart()) {
   };
 
+  public static readonly Option<bool> TranslateStandardLibrary = new("--translate-standard-library", () => true,
+    @"When translating Dafny code to another language, Dafny will, for now, include the standard library as if these were source files. This causes conflicts when multiple such translated projects are combined. When combining such projects, please ensure that only one of them has --translate-standard-library set to true.
+");
+
   public static readonly Option<bool> UseStandardLibraries = new("--standard-libraries", () => false,
     @"
 Allow Dafny code to depend on the standard libraries included with the Dafny distribution.
@@ -608,6 +614,7 @@ NoGhost - disable printing of functions, ghost methods, and proof
     OptionRegistry.RegisterGlobalOption(AllowDeprecation, OptionCompatibility.OptionLibraryImpliesLocalWarning);
     OptionRegistry.RegisterGlobalOption(WarnShadowing, OptionCompatibility.OptionLibraryImpliesLocalWarning);
     OptionRegistry.RegisterGlobalOption(UseStandardLibraries, OptionCompatibility.OptionLibraryImpliesLocalError);
+    OptionRegistry.RegisterOption(TranslateStandardLibrary, OptionScope.Cli);
     OptionRegistry.RegisterOption(WarnAsErrors, OptionScope.Cli);
     OptionRegistry.RegisterOption(ProgressOption, OptionScope.Cli);
     OptionRegistry.RegisterOption(LogLocation, OptionScope.Cli);

@@ -160,7 +160,8 @@ module TestModule {
         var reporter = new ConsoleErrorReporter(options);
 
         Uri uri = new Uri("file:///test.dfy");
-        var program = await new ProgramParser().Parse(programText, uri, reporter);
+        var programParseResult = await new ProgramParser().Parse(programText, uri, reporter);
+        var program = programParseResult.Program;
 
         if (reporter.ErrorCount > 0) {
             var errors = string.Join("\n", reporter.AllMessages);

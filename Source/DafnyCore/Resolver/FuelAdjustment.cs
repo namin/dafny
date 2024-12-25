@@ -7,7 +7,7 @@ namespace Microsoft.Dafny;
 public static class FuelAdjustment {
 
   public static void CheckForFuelAdjustments(ErrorReporter reporter, ModuleDefinition module) {
-    CheckForFuelAdjustments(reporter, module.tok, module.Attributes, module);
+    CheckForFuelAdjustments(reporter, module.Tok, module.Attributes, module);
     foreach (var clbl in ModuleDefinition.AllItersAndCallables(module.TopLevelDecls)) {
       Statement body = null;
       if (clbl is Method method) {
@@ -32,7 +32,7 @@ public static class FuelAdjustment {
     }
   }
 
-  public static void CheckForFuelAdjustments(ErrorReporter reporter, IToken tok, Attributes attrs, ModuleDefinition currentModule) {
+  public static void CheckForFuelAdjustments(ErrorReporter reporter, IOrigin tok, Attributes attrs, ModuleDefinition currentModule) {
     List<List<Expression>> results = Attributes.FindAllExpressions(attrs, "fuel");
 
     if (results == null) {

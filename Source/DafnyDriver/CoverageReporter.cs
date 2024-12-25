@@ -144,7 +144,7 @@ public class CoverageReporter {
           nextToken.Uri = uri;
           var precedingToken = new Token(line, col - 1);
           precedingToken.Uri = uri;
-          var rangeToken = new RangeToken(lastEndToken, precedingToken);
+          var rangeToken = new SourceOrigin(lastEndToken, precedingToken);
           rangeToken.Uri = uri;
           report.LabelCode(rangeToken, lastLabel);
           lastLabel = FromHtmlClass(span.Groups[1].Value);
@@ -154,7 +154,7 @@ public class CoverageReporter {
 
       var lastToken = new Token(source.Count(c => c == '\n') + 2, 0);
       lastToken.Uri = uri;
-      var lastRangeToken = new RangeToken(lastEndToken, lastToken);
+      var lastRangeToken = new SourceOrigin(lastEndToken, lastToken);
       report.LabelCode(lastRangeToken, lastLabel);
     }
     return report;
@@ -263,7 +263,7 @@ public class CoverageReporter {
           module.FullName
         });
 
-        var moduleRange = module.RangeToken.ToDafnyRange();
+        var moduleRange = module.Origin.ToDafnyRange();
         body.Last().AddRange(coverageLabels
           .Where(label => label != CoverageLabel.None && label != CoverageLabel.NotApplicable)
           .Select(label => report.CoverageSpansForFile(sourceFile)
@@ -339,7 +339,7 @@ public class CoverageReporter {
     var files = await DafnyFile.CreateAndValidate(OnDiskFileSystem.Instance,
         new ConsoleErrorReporter(options), options, uri, Token.Cli).ToListAsync();
     var dafnyFile = files[0];
-    var source = await dafnyFile.GetContent().ReadToEndAsync();
+    var source = await dafnyFile.GetContent().Reader.ReadToEndAsync();
     var lines = source.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
     var characterLabels = new CoverageLabel[lines.Length][];
     for (int i = 0; i < lines.Length; i++) {
