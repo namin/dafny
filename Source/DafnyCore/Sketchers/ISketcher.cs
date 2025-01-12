@@ -12,7 +12,7 @@ namespace Microsoft.Dafny {
           return proofSketcher;
         }
         if (sketchType == "ai") {
-          return new LLMClient(reporter);
+          return new LLMSketcher(reporter);
         }
         return null;
       }

@@ -13,7 +13,8 @@ namespace Microsoft.Dafny
                 return;
             }
 
-            string prompt = args[0];
+            string prompt = string.Join(" ", args);
+            Console.WriteLine("Prompt: " + prompt);
 
             var client = new LLMClient(null);
 
