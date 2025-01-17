@@ -45,6 +45,8 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
               } else {
                   return new SketchResponse("// OK: No errors in the method.");
               }
+            } else if (request.SketchType == "log_file_path") {
+              return new SketchResponse("// " + DafnyLogger.logFilePath);
             } else {
               errorMsg += $"\n// No sketcher found";
             }
