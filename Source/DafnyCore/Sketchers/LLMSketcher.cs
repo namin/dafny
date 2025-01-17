@@ -74,7 +74,7 @@ namespace Microsoft.Dafny {
                 var trimmedLine = line.Trim();
 
                 // Skip lines that are only noise keywords
-                if (trimmedLine == "Copy code" || trimmedLine == "dafny") {
+                if (trimmedLine.StartsWith("Copy") || trimmedLine == "dafny") {
                     continue;
                 }
 

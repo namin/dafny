@@ -17,11 +17,7 @@ namespace Microsoft.Dafny {
                 Endpoint = new Uri($"{base_url}:{port}/v1")
             };
             _client = new ChatClient(model, apiKey, options);
-            if (Environment.GetEnvironmentVariable("OPENAI_PORT") == null) {
-                _clientSummary = model;
-            } else {
-                _clientSummary = ":" + port;
-            }
+            _clientSummary = $"{model} (:{port})";
         }
         public async Task<string> GenerateResponse(string prompt) {
             if (string.IsNullOrWhiteSpace(prompt)) {
