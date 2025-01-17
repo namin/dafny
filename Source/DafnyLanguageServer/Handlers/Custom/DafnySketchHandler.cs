@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using System.Linq;
+using System.Collections.Generic;
+//using static Microsoft.Dafny.DafnyLogger;
 
 namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
   public class DafnySketchHandler : ISketchHandler {
@@ -26,7 +28,6 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
         errorMsg += "\n // Couldn't find error manager for requested document: " + uri;
       } else {
         var state = await projectManager.GetStateAfterResolutionAsync();
-
         if (state != null && state.ResolvedProgram is Program resolvedProgram) {
           var reporter = projectManager.Compilation.Reporter;
           var method = GetMethodFromPosition(resolvedProgram, request.Position);
@@ -35,13 +36,19 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
             if (sketcher != null) {
               return await sketcher.GenerateSketch(new SketchRequest(
                 resolvedProgram, request.Content, method, request.SketchType, request.Position.Line, request.Prompt));
-            } else if (request.SketchType == "error") {
+            } else if (request.SketchType.StartsWith("error")) {
               var diagnostics = state.GetAllDiagnostics();
               var methodDiagnostics = diagnostics
-                  .Where(diagnostic => IsDiagnosticForMethod(diagnostic, method)); // Filter diagnostics for the method
+                  .Where(diagnostic => IsDiagnosticForMethod(diagnostic, method));
               if (methodDiagnostics.Any()) {
-                  errorMsg += string.Join("\n", methodDiagnostics.Select(d => PrettyDiagnostic(d)));
-                  return new SketchResponse("// Errors found:\n" + errorMsg);
+                  if (request.SketchType == "error_inline") {
+                    var text = System.IO.File.ReadAllText(uri.LocalPath);
+                    var annotatedMethod = GenerateInlineErrors(text, method, methodDiagnostics);
+                    return new SketchResponse("// Errors found:\n" + annotatedMethod.Trim());
+                  } else {
+                    errorMsg += string.Join("\n", methodDiagnostics.Select(d => PrettyDiagnostic(d)));
+                    return new SketchResponse("// Errors found:\n" + errorMsg);
+                  }
               } else {
                   return new SketchResponse("// OK: No errors in the method.");
               }
@@ -58,13 +65,20 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
       return new SketchResponse("\n// Error: no proof sketch generated" + errorMsg + "\n"); 
     }
     private Method GetMethodFromPosition(Program resolvedProgram, Position position) {
-      // Accessing the DefaultModuleDefinition from the resolvedProgram
+      //Log("# Getting Method");
       if (resolvedProgram.DefaultModuleDef is DefaultModuleDefinition defaultModule) {
         foreach (var topLevelDecl in defaultModule.TopLevelDecls) {
           if (topLevelDecl is TopLevelDeclWithMembers classDecl) {
             foreach (var member in classDecl.Members) {
-              if (member is Method method && IsPositionInRange(method.Tok, method.EndToken, position)) {
-                return method;
+              var method = member as Method;
+              if (method != null) {
+                //var methodDetails = $"lines {method.Tok.line}-{method.EndToken.line}";
+                if (IsPositionInRange(method.Tok, method.EndToken, position)) {
+                  //Log("## Found method: " + methodDetails);
+                  return method;
+                } else {
+                  //Log("## Method out of range: " + methodDetails);
+                }
               }
             }
           }
@@ -104,6 +118,35 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
     private string PrettyDiagnostic(FileDiagnostic fileDiagnostic) {
       var diagnostic = fileDiagnostic.Diagnostic;
       return "// " + diagnostic.Message;
+    }
+
+    private string GenerateInlineErrors(string text, Method method, IEnumerable<FileDiagnostic> diagnostics) {
+        var lines = text.Split('\n');
+        int startLine = method.BodyStartTok.line - 1;
+        int endLine = method.Body.EndToken.line - 1;
+        var methodLines = lines.Skip(startLine).Take(endLine - startLine + 1).ToArray();
+        var diagnosticsByLine = new Dictionary<int, List<string>>();
+
+        foreach (var diagnostic in diagnostics) {
+            int diagLine = diagnostic.Diagnostic.Range.Start.Line - 1;
+            if (diagLine >= startLine && diagLine <= endLine) {
+                if (!diagnosticsByLine.ContainsKey(diagLine - startLine)) {
+                    diagnosticsByLine[diagLine - startLine] = new List<string>();
+                }
+                diagnosticsByLine[diagLine - startLine].Add(
+                  $"// ERROR next: {diagnostic.Diagnostic.Message}");
+            }
+        }
+
+        var annotatedLines = new List<string>();
+        for (int i = 0; i < methodLines.Length; i++) {
+            annotatedLines.Add(methodLines[i]);
+            if (diagnosticsByLine.ContainsKey(i)) {
+                annotatedLines.AddRange(diagnosticsByLine[i]);
+            }
+        }
+
+        return string.Join("\n", annotatedLines);
     }
   }
 }
