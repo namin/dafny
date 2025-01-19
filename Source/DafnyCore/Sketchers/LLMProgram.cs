@@ -16,7 +16,7 @@ namespace Microsoft.Dafny
             string prompt = string.Join(" ", args);
             Console.WriteLine("Prompt: " + prompt);
 
-            var client = new LLMClient(null);
+            var client = new LLMClient();
 
             string response = await client.GenerateResponse(prompt);
             Console.WriteLine(response);

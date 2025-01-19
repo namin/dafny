@@ -9,7 +9,7 @@ namespace Microsoft.Dafny {
         private readonly string _code_here_comment;
         private readonly string _instructions;
         public LLMSketcher(ErrorReporter reporter) {
-            _client = new LLMClient(reporter);
+            _client = new LLMClient();
             _code_here_comment = "// --- YOUR CODE WILL BE ADDED HERE! ---";
             _instructions = "Only output Dafny code without context or explanation. Do not repeat surrounding code. Your code will be added on the line marked: "+_code_here_comment+".\n Edit to satisfy the instructions as follows.";
         }
@@ -51,14 +51,14 @@ namespace Microsoft.Dafny {
             return filterAssumeCode(response);
         }
         private string filterQuotedDafny(string response) {
-            var codeBlockPattern = @"(?s)```dafny\s+(.*?)```";
+            var codeBlockPattern = @"(?s)```(dafny)?\s+(.*?)```";
 
             var extractedCode = new List<string>();
             var matches = Regex.Matches(response, codeBlockPattern);
 
             foreach (Match match in matches) {
                 if (match.Success) {
-                    var code = match.Groups[1].Value.Trim();
+                    var code = match.Groups[2].Value.Trim();
                     extractedCode.Add(code);
                 }
             }
