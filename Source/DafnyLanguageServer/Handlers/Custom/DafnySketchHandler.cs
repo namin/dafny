@@ -40,17 +40,15 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
               var diagnostics = state.GetAllDiagnostics();
               var methodDiagnostics = diagnostics
                   .Where(diagnostic => IsDiagnosticForMethod(diagnostic, method));
+              var inline = request.SketchType == "error_inline";
+              var in_method = inline ? "" : " in "+method.ToString();
+              var prefix = inline ? "// " : "";
               if (methodDiagnostics.Any()) {
-                  if (request.SketchType == "error_inline") {
-                    var text = System.IO.File.ReadAllText(uri.LocalPath);
-                    var annotatedMethod = GenerateInlineErrors(text, method, methodDiagnostics);
-                    return new SketchResponse("// Errors found:\n" + annotatedMethod.Trim());
-                  } else {
-                    errorMsg += string.Join("\n", methodDiagnostics.Select(d => PrettyDiagnostic(d)));
-                    return new SketchResponse("// Errors found:\n" + errorMsg);
-                  }
+                  var text = System.IO.File.ReadAllText(uri.LocalPath);
+                  var annotated = GenerateErrors(text, method, methodDiagnostics, inline);
+                  return new SketchResponse(prefix+"Errors found"+in_method+":\n" + annotated.Trim());
               } else {
-                  return new SketchResponse("// OK: No errors in the method.");
+                  return new SketchResponse(prefix+"OK: No errors"+in_method);
               }
             } else if (request.SketchType == "log_file_path") {
               return new SketchResponse("// " + DafnyLogger.logFilePath);
@@ -96,6 +94,11 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
 
     private bool IsDiagnosticForMethod(FileDiagnostic fileDiagnostic, Method method) {
       var diagnostic = fileDiagnostic.Diagnostic;
+
+      if (diagnostic.Severity != DiagnosticSeverity.Error || diagnostic.Message.StartsWith("Selected triggers: ")) {
+        return false;
+      }
+
       // Extract the diagnostic range
       var diagnosticStartLine = diagnostic.Range.Start.Line;
       var diagnosticStartChar = diagnostic.Range.Start.Character;
@@ -115,12 +118,8 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
               (diagnosticEndLine == methodEndLine && diagnosticEndChar <= methodEndChar));
     }
 
-    private string PrettyDiagnostic(FileDiagnostic fileDiagnostic) {
-      var diagnostic = fileDiagnostic.Diagnostic;
-      return "// " + diagnostic.Message;
-    }
-
-    private string GenerateInlineErrors(string text, Method method, IEnumerable<FileDiagnostic> diagnostics) {
+    private string GenerateErrors(string text, Method method, IEnumerable<FileDiagnostic> diagnostics, bool inline) {
+        var prefix = inline ? "// " : "";
         var lines = text.Split('\n');
         int startLine = method.BodyStartTok.line - 1;
         int endLine = method.Body.EndToken.line - 1;
@@ -128,21 +127,25 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
         var diagnosticsByLine = new Dictionary<int, List<string>>();
 
         foreach (var diagnostic in diagnostics) {
-            int diagLine = diagnostic.Diagnostic.Range.Start.Line - 1;
+            int diagLine = diagnostic.Diagnostic.Range.Start.Line;
             if (diagLine >= startLine && diagLine <= endLine) {
                 if (!diagnosticsByLine.ContainsKey(diagLine - startLine)) {
                     diagnosticsByLine[diagLine - startLine] = new List<string>();
                 }
+                var lineinfo = inline ? "" : $" Ln {diagLine+1}:";
                 diagnosticsByLine[diagLine - startLine].Add(
-                  $"// ERROR next: {diagnostic.Diagnostic.Message}");
+                  $"{prefix}{lineinfo} ERROR: {diagnostic.Diagnostic.Message}");
             }
         }
 
         var annotatedLines = new List<string>();
-        for (int i = 0; i < methodLines.Length; i++) {
-            annotatedLines.Add(methodLines[i]);
+        for (int i = 0; i < methodLines.Length; i++) { 
             if (diagnosticsByLine.ContainsKey(i)) {
+                var line = methodLines[i];
                 annotatedLines.AddRange(diagnosticsByLine[i]);
+                annotatedLines.Add(line);
+            } else if (inline) {
+                annotatedLines.Add(methodLines[i]);
             }
         }
 
