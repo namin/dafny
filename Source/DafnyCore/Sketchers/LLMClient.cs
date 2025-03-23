@@ -1,8 +1,5 @@
 using System;
-using System.ClientModel;
 using System.Threading.Tasks;
-using Microsoft.Boogie;
-using OpenAI.Chat;
 using static Microsoft.Dafny.DafnyLogger;
 
 namespace Microsoft.Dafny {
