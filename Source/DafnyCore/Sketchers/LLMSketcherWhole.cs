@@ -5,12 +5,12 @@ using System.Text.RegularExpressions;
 
 namespace Microsoft.Dafny {
     public class LLMSketcherWhole: ISketcher {
-        private readonly LLMClient _client;
+        protected readonly LLMClient _client;
         public LLMSketcherWhole(ErrorReporter reporter) {
             _client = new LLMClient();
        }
 
-        public async Task<SketchResponse> GenerateSketch(SketchRequest input) {
+        public virtual async Task<SketchResponse> GenerateSketch(SketchRequest input) {
             var prompt = input.Prompt;
             var response = await _client.GenerateResponse(prompt);
             return new SketchResponse(filterDafny(response));

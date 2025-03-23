@@ -1,11 +1,7 @@
-using System;
 using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Text.RegularExpressions;
 
 namespace Microsoft.Dafny {
     public class LLMSketcher: LLMSketcherWhole {
-        private readonly LLMClient _client;
         private readonly string _code_here_comment;
         private readonly string _instructions;
         public LLMSketcher(ErrorReporter reporter): base(reporter) {
@@ -14,7 +10,7 @@ namespace Microsoft.Dafny {
             _instructions = "Only output Dafny code without context or explanation. Do not repeat surrounding code. Your code will be added on the line marked: "+_code_here_comment+".\n Edit to satisfy the instructions as follows.";
         }
 
-        public new async Task<SketchResponse> GenerateSketch(SketchRequest input) {
+        public override async Task<SketchResponse> GenerateSketch(SketchRequest input) {
             var bundle = _instructions + " " + input.Prompt;
             var prompt = bundle;
             prompt += "\n```dafny\n" + ContextForLLM(input) + "\n```\n";
@@ -38,7 +34,9 @@ namespace Microsoft.Dafny {
 
             lines[lineNumber.Value] = (lines[lineNumber.Value]+"\n"+_code_here_comment).TrimStart();
 
-            return string.Join("\n", lines);
+            var res = string.Join("\n", lines);
+
+            return res;
         }
     }
 }
