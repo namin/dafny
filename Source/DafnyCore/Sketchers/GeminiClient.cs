@@ -30,7 +30,7 @@ namespace Microsoft.Dafny
             _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         }
 
-        public string ClientSummary => "Claude";
+        public string ClientSummary => "Gemini";
 
         public async Task<string> Complete(string prompt)
         {
