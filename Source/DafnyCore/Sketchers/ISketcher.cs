@@ -5,14 +5,17 @@ namespace Microsoft.Dafny {
   public interface ISketcher {
       public Task<SketchResponse> GenerateSketch(SketchRequest input);
       public static readonly List<string> Types =
-        new List<string>(ProofSketcher.Types.Concat(new List<string> { "ai", "ai_whole", "trigger" }));      
+        new List<string>(ProofSketcher.Types.Concat(new List<string> { "ai", "ai_abbrev", "ai_whole", "trigger" }));
       public static ISketcher? Create(string sketchType, ErrorReporter reporter) {
         var proofSketcher = ProofSketcher.Create(sketchType, reporter);
         if (proofSketcher != null) {
           return proofSketcher;
         }
         if (sketchType == "ai") {
-          return new LLMSketcher(reporter);
+          return new LLMSketcher(false, reporter);
+        }
+        if (sketchType == "ai_abbrev") {
+          return new LLMSketcher(true, reporter);
         }
         if (sketchType == "ai_whole") {
           return new LLMSketcherWhole(reporter);
