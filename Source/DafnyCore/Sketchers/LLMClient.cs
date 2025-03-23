@@ -9,9 +9,13 @@ namespace Microsoft.Dafny {
     public class LLMClient {
         private readonly IClient _client;
         public LLMClient() {
-            _client = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY") != null ?
-              new AnthropicClient() :
-              new OpenAIClient();
+            if (Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY") != null) {
+                _client = new AnthropicClient();
+            } else if (Environment.GetEnvironmentVariable("GEMINI_API_KEY") != null) {
+                _client = new GeminiClient();
+            } else {
+                _client = new OpenAIClient();
+            }
         }
         public async Task<string> GenerateResponse(string prompt) {
             if (string.IsNullOrWhiteSpace(prompt)) {
