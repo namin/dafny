@@ -37,7 +37,7 @@ namespace Microsoft.Dafny {
                 return content;
             }
 
-            lines[lineNumber.Value] = (lines[lineNumber.Value]+"\n"+_code_here_comment).TrimStart();
+            lines[lineNumber.Value] = (lines[lineNumber.Value]+"\n"+_code_here_comment);
 
             var res = string.Join("\n", lines);
 

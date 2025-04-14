@@ -33,8 +33,8 @@ namespace Microsoft.Dafny {
 
             foreach (Match match in matches) {
                 if (match.Success) {
-                    var code = match.Groups[2].Value.Trim();
-                    extractedCode.Add(code);
+                    var code = match.Groups[2].Value;
+                    extractedCode.Add(code.Trim('\n', '\r'));
                 }
             }
 
@@ -53,7 +53,7 @@ namespace Microsoft.Dafny {
                 }
 
                 // Otherwise, add the line as is
-                cleanedLines.Add(trimmedLine);
+                cleanedLines.Add(line.Trim('\n', '\r'));
             }
 
             // Combine and return the cleaned lines
