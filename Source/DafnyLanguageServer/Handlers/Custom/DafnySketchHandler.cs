@@ -31,7 +31,7 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
         if (state != null && state.ResolvedProgram is Program resolvedProgram) {
           var reporter = projectManager.Compilation.Reporter;
           var method = GetMethodFromPosition(resolvedProgram, request.Position);
-          if (method != null) {
+          //if (method != null) {
             var sketcher = ISketcher.Create(request.SketchType, reporter);
             if (sketcher != null) {
               return await sketcher.GenerateSketch(new SketchRequest(
@@ -55,9 +55,9 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
             } else {
               errorMsg += $"\n// No sketcher found";
             }
-          } else {
-            errorMsg += $"\n// No method found at position {request.Position} in {request.TextDocument.Uri}";
-          }
+          //} else {
+          //  errorMsg += $"\n// No method found at position {request.Position} in {request.TextDocument.Uri}";
+          //}
         }
       }
       return new SketchResponse("\n// Error: no proof sketch generated" + errorMsg + "\n"); 
