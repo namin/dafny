@@ -10,7 +10,7 @@ namespace Microsoft.Dafny {
         public OpenAIClient() {
             var base_url = Environment.GetEnvironmentVariable("OPENAI_BASE_URL") ?? "http://localhost";
             var port = Environment.GetEnvironmentVariable("OPENAI_PORT") ?? "11434";
-            var model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "qwen2.5-coder";
+            var model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gemma3:27b-it-qat";
             var apiKey = new ApiKeyCredential(Environment.GetEnvironmentVariable("OPENAI_PASSWORD") ?? "ollama");
             var options = new OpenAI.OpenAIClientOptions {
                 Endpoint = new Uri($"{base_url}:{port}/v1")
