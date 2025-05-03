@@ -16,6 +16,9 @@ namespace Microsoft.Dafny {
     }
 
     public override string GenerateProofSketch(Program program, Method method, int? lineNumber) {
+      if (method == null) {
+        return "// Error: No method resolved.";
+      }
       // Determine if function-based induction should be applied
       var functionCallExpr = RequiresCallsFunction(method);
       if (functionCallExpr != null) {
