@@ -26,8 +26,8 @@ public interface ICodeContext : IASTVisitorContext {
 /// between these two, the declaration is wrapped inside a CodeContextWrapper.
 /// </summary>
 public class CodeContextWrapper : ICodeContext {
-  protected readonly ICodeContext inner;
-  private readonly bool isGhostContext;
+  protected ICodeContext inner;
+  private bool isGhostContext;
   public CodeContextWrapper(ICodeContext inner, bool isGhostContext) {
     this.inner = inner;
     this.isGhostContext = isGhostContext;
@@ -87,7 +87,6 @@ public class CallableWrapper : CodeContextWrapper, ICallable {
   }
 
   public ICallable CwInner => (ICallable)inner;
-  public IOrigin Tok => CwInner.Tok;
   public IEnumerable<INode> Children => CwInner.Children;
   public IEnumerable<INode> PreResolveChildren => CwInner.PreResolveChildren;
 
@@ -103,9 +102,13 @@ public class CallableWrapper : CodeContextWrapper, ICallable {
   public bool AllowsAllocation => CwInner.AllowsAllocation;
 
   public bool SingleFileToken => CwInner.SingleFileToken;
-  public IEnumerable<IOrigin> OwnedTokens => CwInner.OwnedTokens;
+  public TokenRange EntireRange => CwInner.EntireRange;
+  public Token StartToken => CwInner.StartToken;
+  public Token EndToken => CwInner.EndToken;
+
+  public IEnumerable<Token> OwnedTokens => CwInner.OwnedTokens;
   public IOrigin Origin => CwInner.Origin;
-  public IOrigin NavigationToken => CwInner.NavigationToken;
+  public TokenRange NavigationRange => CwInner.NavigationRange;
   public SymbolKind? Kind => CwInner.Kind;
   public string GetDescription(DafnyOptions options) {
     return CwInner.GetDescription(options);
@@ -126,7 +129,7 @@ public interface IMethodCodeContext : ICallable {
 /// Applies when we are not inside an ICallable.  In particular, a NoContext is used to resolve the attributes of declarations with no other context.
 /// </summary>
 public class NoContext : ICodeContext {
-  public readonly ModuleDefinition Module;
+  public ModuleDefinition Module;
   public NoContext(ModuleDefinition module) {
     this.Module = module;
   }
@@ -136,8 +139,8 @@ public class NoContext : ICodeContext {
     set => throw new NotSupportedException();
   }
   bool ICodeContext.IsGhost { get { return true; } }
-  List<TypeParameter> ICodeContext.TypeArgs { get { return new List<TypeParameter>(); } }
-  List<Formal> ICodeContext.Ins { get { return new List<Formal>(); } }
+  List<TypeParameter> ICodeContext.TypeArgs { get { return []; } }
+  List<Formal> ICodeContext.Ins { get { return []; } }
   ModuleDefinition IASTVisitorContext.EnclosingModule { get { return Module; } }
   bool ICodeContext.MustReverify { get { Contract.Assume(false, "should not be called on NoContext"); throw new cce.UnreachableException(); } }
   public string FullSanitizedName { get { Contract.Assume(false, "should not be called on NoContext"); throw new cce.UnreachableException(); } }
@@ -151,6 +154,7 @@ public interface RedirectingTypeDecl : ICallable {
   string Name { get; }
 
   string FullDafnyName { get; }
+  IOrigin Tok { get; }
 
   Attributes Attributes { get; }
   ModuleDefinition Module { get; }

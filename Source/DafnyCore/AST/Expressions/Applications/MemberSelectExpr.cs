@@ -5,7 +5,7 @@ using System.Diagnostics.Contracts;
 namespace Microsoft.Dafny;
 
 public class MemberSelectExpr : Expression, IHasReferences, ICloneable<MemberSelectExpr> {
-  public readonly Expression Obj;
+  public Expression Obj;
   public Name MemberNameNode;
   public string MemberName => MemberNameNode.Value;
   [FilledInDuringResolution] public MemberDecl Member;    // will be a Field or Function
@@ -215,9 +215,9 @@ public class MemberSelectExpr : Expression, IHasReferences, ICloneable<MemberSel
     }
   }
 
-  public MemberSelectExpr(IOrigin tok, Expression obj, Name memberName)
-    : base(tok) {
-    Contract.Requires(tok != null);
+  public MemberSelectExpr(IOrigin origin, Expression obj, Name memberName)
+    : base(origin) {
+    Contract.Requires(origin != null);
     Contract.Requires(obj != null);
     Contract.Requires(memberName != null);
     this.Obj = obj;
@@ -227,9 +227,9 @@ public class MemberSelectExpr : Expression, IHasReferences, ICloneable<MemberSel
   /// <summary>
   /// Returns a resolved MemberSelectExpr for a field.
   /// </summary>
-  public MemberSelectExpr(IOrigin tok, Expression obj, Field field)
-    : this(tok, obj, new Name(field.Name)) {
-    Contract.Requires(tok != null);
+  public MemberSelectExpr(IOrigin origin, Expression obj, Field field)
+    : this(origin, obj, new Name(field.Name)) {
+    Contract.Requires(origin != null);
     Contract.Requires(obj != null);
     Contract.Requires(field != null);
     Contract.Requires(obj.Type != null);  // "obj" is required to be resolved
@@ -238,7 +238,7 @@ public class MemberSelectExpr : Expression, IHasReferences, ICloneable<MemberSel
 
     var receiverType = obj.Type.NormalizeExpand();
     this.TypeApplicationAtEnclosingClass = receiverType.TypeArgs;
-    this.TypeApplicationJustMember = new List<Type>();
+    this.TypeApplicationJustMember = [];
 
     var typeMap = new Dictionary<TypeParameter, Type>();
     if (receiverType is UserDefinedType udt) {
@@ -295,6 +295,6 @@ public class MemberSelectExpr : Expression, IHasReferences, ICloneable<MemberSel
   [FilledInDuringResolution] public List<Type> ResolvedOutparameterTypes;
 
   public IEnumerable<Reference> GetReferences() {
-    return new[] { new Reference(Tok, Member) };
+    return new[] { new Reference(ReportingRange, Member) };
   }
 }

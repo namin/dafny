@@ -26,9 +26,9 @@ Send notifications about the verification status of each line in the program.
   public static DocumentVerificationTree UpdateTree(DafnyOptions options, Program program, DocumentVerificationTree rootVerificationTree) {
     var previousTrees = rootVerificationTree.Children;
 
-    ConcurrentBag<VerificationTree> result = new();
+    ConcurrentBag<VerificationTree> result = [];
 
-    HashSet<Position> recordedPositions = new HashSet<Position>();
+    HashSet<Position> recordedPositions = [];
 
     void AddAndPossiblyMigrateVerificationTree(VerificationTree verificationTree) {
       var position = verificationTree.Position;
@@ -62,10 +62,10 @@ Send notifications about the verification status of each line in the program.
                 "datatype",
                 ctor.Name,
                 ctor.GetCompileName(options),
-                ctor.Tok.Filepath,
-                ctor.Tok.Uri,
+                ctor.Origin.Filepath,
+                ctor.Origin.Uri,
                 verificationTreeRange,
-                ctor.Tok.GetLspPosition(),
+                ctor.Origin.GetLspPosition(),
                 Attributes.Contains(ctor.Attributes, "only")
                 );
               AddAndPossiblyMigrateVerificationTree(verificationTree);
@@ -75,7 +75,7 @@ Send notifications about the verification status of each line in the program.
 
         if (topLevelDecl is TopLevelDeclWithMembers topLevelDeclWithMembers) {
           foreach (var member in topLevelDeclWithMembers.Members) {
-            var memberWasNotIncluded = member.Tok.Uri != rootVerificationTree.Uri;
+            var memberWasNotIncluded = member.Origin.Uri != rootVerificationTree.Uri;
             if (memberWasNotIncluded) {
               continue;
             }
@@ -90,32 +90,32 @@ Send notifications about the verification status of each line in the program.
                 "constant",
                 member.Name,
                 member.GetCompileName(options),
-                member.Tok.Filepath,
-                member.Tok.Uri,
+                member.Origin.Filepath,
+                member.Origin.Uri,
                 verificationTreeRange,
-                member.Tok.GetLspPosition(),
+                member.Origin.GetLspPosition(),
                 Attributes.Contains(member.Attributes, "only"));
               AddAndPossiblyMigrateVerificationTree(verificationTree);
-            } else if (member is Method or Function) {
+            } else if (member is MethodOrConstructor or Function) {
               var verificationTreeRange = member.StartToken.GetLspRange(member.EndToken);
               var verificationTree = new TopLevelDeclMemberVerificationTree(
-                (member is Method ? "method" : "function"),
+                (member is MethodOrConstructor ? "method" : "function"),
                 member.Name,
                 member.GetCompileName(options),
-                member.Tok.Filepath,
-                member.Tok.Uri,
+                member.Origin.Filepath,
+                member.Origin.Uri,
                 verificationTreeRange,
-                member.Tok.GetLspPosition(),
+                member.NavigationRange.StartToken.GetLspPosition(),
                 Attributes.Contains(member.Attributes, "only"));
               AddAndPossiblyMigrateVerificationTree(verificationTree);
               if (member is Function { ByMethodBody: { } } function) {
-                var verificationTreeRangeByMethod = function.ByMethodBody.Origin.ToLspRange();
+                var verificationTreeRangeByMethod = function.ByMethodBody.EntireRange.ToLspRange();
                 var verificationTreeByMethod = new TopLevelDeclMemberVerificationTree(
                   "by method part of function",
                   member.Name,
                   member.GetCompileName(options) + "_by_method",
-                  member.Tok.Filepath,
-                  member.Tok.Uri,
+                  member.Origin.Filepath,
+                  member.Origin.Uri,
                   verificationTreeRangeByMethod,
                   function.ByMethodTok.GetLspPosition(),
                   Attributes.Contains(member.Attributes, "only"));
@@ -126,7 +126,7 @@ Send notifications about the verification status of each line in the program.
         }
 
         if (topLevelDecl is SubsetTypeDecl subsetTypeDecl) {
-          if (subsetTypeDecl.Tok.Uri != rootVerificationTree.Uri) {
+          if (subsetTypeDecl.Origin.Uri != rootVerificationTree.Uri) {
             continue;
           }
 
@@ -135,10 +135,10 @@ Send notifications about the verification status of each line in the program.
             $"subset type",
             subsetTypeDecl.Name,
             subsetTypeDecl.GetCompileName(options),
-            subsetTypeDecl.Tok.Filepath,
-            subsetTypeDecl.Tok.Uri,
+            subsetTypeDecl.Origin.Filepath,
+            subsetTypeDecl.Origin.Uri,
             verificationTreeRange,
-            subsetTypeDecl.Tok.GetLspPosition(),
+            subsetTypeDecl.Origin.GetLspPosition(),
             Attributes.Contains(subsetTypeDecl.Attributes, "only"));
           AddAndPossiblyMigrateVerificationTree(verificationTree);
         }
@@ -156,7 +156,7 @@ Send notifications about the verification status of each line in the program.
   /// Also set the implementation priority depending on the last edited methods 
   /// </summary>
   public virtual void ReportImplementationsBeforeVerification(IdeState state, ICanVerify canVerify, Implementation[] implementations) {
-    var uri = canVerify.Tok.Uri;
+    var uri = canVerify.Origin.Uri;
     var tree = state.VerificationTrees.GetValueOrDefault(uri) ?? new DocumentVerificationTree(state.Program, uri);
 
     if (logger.IsEnabled(LogLevel.Debug)) {
@@ -167,7 +167,7 @@ Send notifications about the verification status of each line in the program.
     // We migrate existing implementations to the new provided ones if they exist.
     // (same child number, same file and same position)
     var canVerifyNode = tree.Children.OfType<TopLevelDeclMemberVerificationTree>()
-      .FirstOrDefault(t => t.Position == canVerify.Tok.GetLspPosition());
+      .FirstOrDefault(t => t.Position == canVerify.Origin.GetLspPosition());
     if (canVerifyNode == null) {
       return;
     }
@@ -380,15 +380,15 @@ Send notifications about the verification status of each line in the program.
         foreach (var (assertCmd, outcome) in perAssertOutcome) {
           var status = GetNodeStatus(outcome);
           perAssertCounterExample.TryGetValue(assertCmd, out var counterexample);
-          IOrigin? secondaryToken = BoogieGenerator.ToDafnyToken(true, counterexample is ReturnCounterexample returnCounterexample ? returnCounterexample.FailingReturn.tok :
+          IOrigin? secondaryToken = BoogieGenerator.ToDafnyToken(counterexample is ReturnCounterexample returnCounterexample ? returnCounterexample.FailingReturn.tok :
             counterexample is CallCounterexample callCounterexample ? callCounterexample.FailingRequires.tok :
             null);
           if (assertCmd is AssertEnsuresCmd assertEnsuresCmd) {
-            AddChildOutcome(counterexample, assertCmd, BoogieGenerator.ToDafnyToken(true, assertEnsuresCmd.Ensures.tok), status, secondaryToken, " ensures", "_ensures");
+            AddChildOutcome(counterexample, assertCmd, BoogieGenerator.ToDafnyToken(assertEnsuresCmd.Ensures.tok), status, secondaryToken, " ensures", "_ensures");
           } else if (assertCmd is AssertRequiresCmd assertRequiresCmd) {
-            AddChildOutcome(counterexample, assertCmd, BoogieGenerator.ToDafnyToken(true, assertRequiresCmd.Call.tok), status, secondaryToken, assertDisplay: "Call", assertIdentifier: "call");
+            AddChildOutcome(counterexample, assertCmd, BoogieGenerator.ToDafnyToken(assertRequiresCmd.Call.tok), status, secondaryToken, assertDisplay: "Call", assertIdentifier: "call");
           } else {
-            AddChildOutcome(counterexample, assertCmd, BoogieGenerator.ToDafnyToken(true, assertCmd.tok), status, secondaryToken, assertDisplay: "Assertion", assertIdentifier: "assert");
+            AddChildOutcome(counterexample, assertCmd, BoogieGenerator.ToDafnyToken(assertCmd.tok), status, secondaryToken, assertDisplay: "Assertion", assertIdentifier: "assert");
           }
         }
         targetMethodNode.PropagateChildrenErrorsUp();

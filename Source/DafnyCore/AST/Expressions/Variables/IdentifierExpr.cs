@@ -10,23 +10,24 @@ public class IdentifierExpr : Expression, IHasReferences, ICloneable<IdentifierE
     Contract.Invariant(Name != null);
   }
 
-  public readonly string Name;
+  public string Name;
   [FilledInDuringResolution] public IVariable Var;
 
-  public string DafnyName => Tok.line > 0 ? Origin.PrintOriginal() : Name;
+  public string DafnyName => Origin.line > 0 ? EntireRange.PrintOriginal() : Name;
 
-  public IdentifierExpr(IOrigin tok, string name)
-    : base(tok) {
-    Contract.Requires(tok != null);
+  [SyntaxConstructor]
+  public IdentifierExpr(IOrigin origin, string name)
+    : base(origin) {
+    Contract.Requires(origin != null);
     Contract.Requires(name != null);
     Name = name;
   }
   /// <summary>
   /// Constructs a resolved IdentifierExpr.
   /// </summary>
-  public IdentifierExpr(IOrigin tok, IVariable v)
-    : base(tok) {
-    Contract.Requires(tok != null);
+  public IdentifierExpr(IOrigin origin, IVariable v)
+    : base(origin) {
+    Contract.Requires(origin != null);
     Contract.Requires(v != null);
     Name = v.Name;
     Var = v;
@@ -52,8 +53,8 @@ public class IdentifierExpr : Expression, IHasReferences, ICloneable<IdentifierE
     return expr.Resolved is IdentifierExpr identifierExpr && identifierExpr.Var == variable;
   }
 
-  public IEnumerable<Reference> GetReferences() {
-    return Enumerable.Repeat(new Reference(Tok, Var), 1);
+  public virtual IEnumerable<Reference> GetReferences() {
+    return Enumerable.Repeat(new Reference(ReportingRange, Var), 1);
   }
 
   public override IEnumerable<INode> Children { get; } = Enumerable.Empty<Node>();
@@ -64,14 +65,14 @@ public class IdentifierExpr : Expression, IHasReferences, ICloneable<IdentifierE
 /// assigning a value to a Method's out parameter.
 /// </summary>
 public class ImplicitIdentifierExpr : IdentifierExpr {
-  public ImplicitIdentifierExpr(IOrigin tok, string name)
-    : base(tok, name) { }
+  public ImplicitIdentifierExpr(IOrigin origin, string name)
+    : base(origin, name) { }
 
   /// <summary>
   /// Constructs a resolved implicit identifier.
   /// </summary>
-  public ImplicitIdentifierExpr(IOrigin tok, IVariable v)
-    : base(tok, v) { }
+  public ImplicitIdentifierExpr(IOrigin origin, IVariable v)
+    : base(origin, v) { }
 
   public override bool IsImplicit => true;
 }

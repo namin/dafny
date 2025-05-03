@@ -1,6 +1,6 @@
-using System;
+#nullable enable
+
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
 using System.Linq;
 
 namespace Microsoft.Dafny;
@@ -12,18 +12,19 @@ public class NestedMatchStmt : Statement, ICloneable<NestedMatchStmt>, ICanForma
 
   IReadOnlyList<NestedMatchCase> INestedMatch.Cases => Cases;
 
-  public readonly bool UsesOptionalBraces;
+  public bool UsesOptionalBraces;
 
-  [FilledInDuringResolution] public Statement Flattened { get; set; }
+  [FilledInDuringResolution] public Statement Flattened { get; set; } = null!;
 
   private void InitializeAttributes() {
     // Default case for match is false
     bool splitMatch = Attributes.Contains(Attributes, "split");
-    Attributes.ContainsBool(Attributes, "split", ref splitMatch);
+    _ = Attributes.ContainsBool(Attributes, "split", ref splitMatch);
     foreach (var c in Cases) {
       if (!Attributes.Contains(c.Attributes, "split")) {
-        List<Expression> args = new List<Expression>();
-        args.Add(Expression.CreateBoolLiteral(c.Tok, splitMatch));
+        List<Expression> args = [
+          Expression.CreateBoolLiteral(c.Origin, splitMatch)
+        ];
         Attributes attrs = new Attributes("split", args, c.Attributes);
         c.Attributes = attrs;
       }
@@ -72,10 +73,9 @@ public class NestedMatchStmt : Statement, ICloneable<NestedMatchStmt>, ICanForma
     }
   }
 
-  public NestedMatchStmt(IOrigin rangeOrigin, Expression source, [Captured] List<NestedMatchCaseStmt> cases, bool usesOptionalBraces, Attributes attrs = null)
-    : base(rangeOrigin, attrs) {
-    Contract.Requires(source != null);
-    Contract.Requires(cce.NonNullElements(cases));
+  [SyntaxConstructor]
+  public NestedMatchStmt(IOrigin origin, Expression source, [Captured] List<NestedMatchCaseStmt> cases, bool usesOptionalBraces, Attributes? attributes = null)
+    : base(origin, attributes) {
     Source = source;
     Cases = cases;
     UsesOptionalBraces = usesOptionalBraces;
@@ -95,13 +95,13 @@ public class NestedMatchStmt : Statement, ICloneable<NestedMatchStmt>, ICanForma
       resolver.PartiallySolveTypeConstraints(true);
 
       if (Source.Type is TypeProxy) {
-        resolver.Reporter.Error(MessageSource.Resolver, Tok, "Could not resolve the type of the source of the match statement. Please provide additional typing annotations.");
+        resolver.Reporter.Error(MessageSource.Resolver, Origin, "Could not resolve the type of the source of the match statement. Please provide additional typing annotations.");
         return;
       }
     }
 
     var errorCount = resolver.Reporter.Count(ErrorLevel.Error);
-    var sourceType = resolver.PartiallyResolveTypeForMemberSelection(Source.Tok, Source.Type).NormalizeExpand();
+    var sourceType = resolver.PartiallyResolveTypeForMemberSelection(Source.Origin, Source.Type).NormalizeExpand();
     CheckLinearNestedMatchStmt(sourceType, resolutionContext, resolver);
     if (resolver.Reporter.Count(ErrorLevel.Error) != errorCount) {
       return;
@@ -142,7 +142,7 @@ public class NestedMatchStmt : Statement, ICloneable<NestedMatchStmt>, ICanForma
   }
 
   public override void ResolveGhostness(ModuleResolver resolver, ErrorReporter reporter, bool mustBeErasable,
-    ICodeContext codeContext, string proofContext,
+    ICodeContext codeContext, string? proofContext,
     bool allowAssumptionVariables, bool inConstructorInitializationPhase) {
     var hasGhostPattern = Cases.
       SelectMany(caze => caze.Pat.DescendantsAndSelf)
@@ -154,7 +154,7 @@ public class NestedMatchStmt : Statement, ICloneable<NestedMatchStmt>, ICanForma
     }
 
     if (!mustBeErasable && IsGhost) {
-      reporter.Info(MessageSource.Resolver, Tok, "ghost match");
+      reporter.Info(MessageSource.Resolver, Origin, "ghost match");
     }
 
     Cases.ForEach(kase => kase.Body.ForEach(ss =>

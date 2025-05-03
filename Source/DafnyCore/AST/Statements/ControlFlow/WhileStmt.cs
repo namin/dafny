@@ -1,13 +1,14 @@
+#nullable enable
 using System.Collections.Generic;
 
 namespace Microsoft.Dafny;
 
 public class WhileStmt : OneBodyLoopStmt, ICloneable<WhileStmt>, ICanFormat {
-  public readonly Expression/*?*/ Guard;
+  public Expression? Guard;
 
   public class LoopBodySurrogate {
-    public readonly List<IVariable> LocalLoopTargets;
-    public readonly bool UsesHeap;
+    public List<IVariable> LocalLoopTargets;
+    public bool UsesHeap;
 
     public LoopBodySurrogate(List<IVariable> localLoopTargets, bool usesHeap) {
       LocalLoopTargets = localLoopTargets;
@@ -15,7 +16,7 @@ public class WhileStmt : OneBodyLoopStmt, ICloneable<WhileStmt>, ICanFormat {
     }
   }
 
-  public WhileStmt Clone(Cloner cloner) {
+  public new WhileStmt Clone(Cloner cloner) {
     return new WhileStmt(cloner, this);
   }
 
@@ -23,17 +24,18 @@ public class WhileStmt : OneBodyLoopStmt, ICloneable<WhileStmt>, ICanFormat {
     Guard = cloner.CloneExpr(original.Guard);
   }
 
-  public WhileStmt(IOrigin rangeOrigin, Expression guard,
+  public WhileStmt(IOrigin origin, Expression guard,
     List<AttributedExpression> invariants, Specification<Expression> decreases, Specification<FrameExpression> mod,
     BlockStmt body)
-    : base(rangeOrigin, invariants, decreases, mod, body, null) {
+    : base(origin, invariants, decreases, mod, body, [], null) {
     Guard = guard;
   }
 
-  public WhileStmt(IOrigin rangeOrigin, Expression guard,
+  [SyntaxConstructor]
+  public WhileStmt(IOrigin origin, Expression guard,
     List<AttributedExpression> invariants, Specification<Expression> decreases, Specification<FrameExpression> mod,
-    BlockStmt body, Attributes attrs)
-    : base(rangeOrigin, invariants, decreases, mod, body, attrs) {
+    BlockStmt body, List<Label> labels, Attributes? attributes)
+    : base(origin, invariants, decreases, mod, body, labels, attributes) {
     Guard = guard;
   }
 
@@ -52,7 +54,7 @@ public class WhileStmt : OneBodyLoopStmt, ICloneable<WhileStmt>, ICanFormat {
       formatter.SetAttributedExpressionIndentation(ens, indentBefore + formatter.SpaceTab);
     }
 
-    foreach (var dec in Decreases.Expressions) {
+    foreach (var dec in Decreases.Expressions!) {
       formatter.SetDecreasesExpressionIndentation(dec, indentBefore + formatter.SpaceTab);
     }
 
@@ -64,17 +66,17 @@ public class WhileStmt : OneBodyLoopStmt, ICloneable<WhileStmt>, ICanFormat {
   }
 
   public override void ResolveGhostness(ModuleResolver resolver, ErrorReporter reporter, bool mustBeErasable,
-    ICodeContext codeContext, string proofContext,
+    ICodeContext codeContext, string? proofContext,
     bool allowAssumptionVariables, bool inConstructorInitializationPhase) {
     if (proofContext != null && Mod.Expressions != null && Mod.Expressions.Count != 0) {
-      reporter.Error(MessageSource.Resolver, ResolutionErrors.ErrorId.r_loop_may_not_use_modifies, Mod.Expressions[0].Tok, $"a loop in {proofContext} is not allowed to use 'modifies' clauses");
+      reporter.Error(MessageSource.Resolver, ResolutionErrors.ErrorId.r_loop_may_not_use_modifies, Mod.Expressions[0].Origin, $"a loop in {proofContext} is not allowed to use 'modifies' clauses");
     }
 
     IsGhost = mustBeErasable || (Guard != null && ExpressionTester.UsesSpecFeatures(Guard));
     if (!mustBeErasable && IsGhost) {
-      reporter.Info(MessageSource.Resolver, Tok, "ghost while");
+      reporter.Info(MessageSource.Resolver, Origin, "ghost while");
     }
-    if (IsGhost && Decreases.Expressions.Exists(e => e is WildcardExpr)) {
+    if (IsGhost && Decreases.Expressions!.Exists(e => e is WildcardExpr)) {
       reporter.Error(MessageSource.Resolver, ResolutionErrors.ErrorId.r_decreases_forbidden_on_ghost_loops, this, "'decreases *' is not allowed on ghost loops");
     }
     if (IsGhost && Mod.Expressions != null) {
@@ -83,7 +85,7 @@ public class WhileStmt : OneBodyLoopStmt, ICloneable<WhileStmt>, ICanFormat {
     if (Body != null) {
       Body.ResolveGhostness(resolver, reporter, IsGhost, codeContext, proofContext, allowAssumptionVariables,
         inConstructorInitializationPhase);
-      if (Body.IsGhost && !Decreases.Expressions.Exists(e => e is WildcardExpr)) {
+      if (Body.IsGhost && !Decreases.Expressions!.Exists(e => e is WildcardExpr)) {
         IsGhost = true;
       }
     }

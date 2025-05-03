@@ -1,10 +1,6 @@
 // Copyright by the contributors to the Dafny Project
 // SPDX-License-Identifier: MIT
 #nullable enable
-using System.Collections.Generic;
-using System.CommandLine;
-using System.Linq;
-
 namespace Microsoft.Dafny {
 
   public enum ErrorLevel {
@@ -15,14 +11,12 @@ namespace Microsoft.Dafny {
     Project, Parser, Cloner, RefinementTransformer, Rewriter, Resolver, Translator, Verifier, Compiler, Documentation, TestGeneration
   }
 
-  public record DafnyRelatedInformation(IOrigin Token, string Message);
-  public record DafnyDiagnostic(MessageSource Source, string ErrorId, IOrigin Token, string Message, ErrorLevel Level,
-    IReadOnlyList<DafnyRelatedInformation> RelatedInformation);
+  public record DafnyRelatedInformation(TokenRange Range, string Message);
 
   public class ErrorReporterSink : ErrorReporter {
     public ErrorReporterSink(DafnyOptions options) : base(options) { }
 
-    protected override bool MessageCore(MessageSource source, ErrorLevel level, string errorId, IOrigin tok, string msg) {
+    public override bool MessageCore(DafnyDiagnostic dafnyDiagnostic) {
       return false;
     }
 
@@ -49,13 +43,15 @@ namespace Microsoft.Dafny {
       this.WrappedReporter = reporter;
     }
 
-    protected override bool MessageCore(MessageSource source, ErrorLevel level, string errorId, IOrigin tok, string msg) {
-      if (level == ErrorLevel.Warning) {
+    public override bool MessageCore(DafnyDiagnostic dafnyDiagnostic) {
+      if (dafnyDiagnostic.Level == ErrorLevel.Warning) {
         return false;
       }
 
-      base.MessageCore(source, level, errorId, tok, msg);
-      return WrappedReporter.Message(source, level, errorId, tok, msgPrefix + msg);
+      base.MessageCore(dafnyDiagnostic);
+      return WrappedReporter.MessageCore(dafnyDiagnostic with {
+        Message = msgPrefix + dafnyDiagnostic.Message
+      });
     }
   }
 }

@@ -34,8 +34,8 @@ public class BlockByProofStmt : Statement, ICanResolveNewAndOld, ICanPrint,
     // clear the labels for the duration of checking the proof body, because break statements are not allowed to leave the proof body
     var prevLblStmts = resolver.EnclosingStatementLabels;
     var prevLoopStack = resolver.LoopStack;
-    resolver.EnclosingStatementLabels = new Scope<Statement>(resolver.Options);
-    resolver.LoopStack = new List<Statement>();
+    resolver.EnclosingStatementLabels = new Scope<LabeledStatement>(resolver.Options);
+    resolver.LoopStack = [];
     resolver.ResolveStatement(proof, resolutionContext);
     resolver.EnclosingStatementLabels = prevLblStmts;
     resolver.LoopStack = prevLoopStack;

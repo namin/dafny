@@ -9,14 +9,13 @@
     <IsPackable>true</IsPackable>
     <DefineConstants>TRACE</DefineConstants>
     <TargetFramework>net8.0</TargetFramework>
-<RollForward>Major</RollForward>
+    <RollForward>Major</RollForward>
     <Nullable>enable</Nullable>
     <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
   
   <ItemGroup>
-    <ProjectReference Include="..\DafnyServer\DafnyServer.csproj" />
     <ProjectReference Include="..\DafnyPipeline\DafnyPipeline.csproj" />
   </ItemGroup>
 

@@ -71,7 +71,7 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
               var method = member as Method;
               if (method != null) {
                 //var methodDetails = $"lines {method.Tok.line}-{method.EndToken.line}";
-                if (IsPositionInRange(method.Tok, method.EndToken, position)) {
+                if (IsPositionInRange(method.StartToken, method.EndToken, position)) {
                   //Log("## Found method: " + methodDetails);
                   return method;
                 } else {
@@ -106,8 +106,8 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
       var diagnosticEndChar = diagnostic.Range.End.Character;
 
       // Extract the method's start and end range
-      var methodStartLine = method.Tok.line;
-      var methodStartChar = method.Tok.col;
+      var methodStartLine = method.StartToken.line;
+      var methodStartChar = method.StartToken.col;
       var methodEndLine = method.EndToken.line;
       var methodEndChar = method.EndToken.col;
 

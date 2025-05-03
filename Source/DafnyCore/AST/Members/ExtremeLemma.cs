@@ -6,7 +6,7 @@ namespace Microsoft.Dafny;
 
 public abstract class ExtremeLemma : Method {
   public override string WhatKindMentionGhost => WhatKind;
-  public readonly ExtremePredicate.KType TypeOfK;
+  public ExtremePredicate.KType TypeOfK;
   public bool KNat => TypeOfK == ExtremePredicate.KType.Nat;
   [FilledInDuringResolution] public PrefixLemma PrefixLemma;  // (name registration)
 
@@ -18,7 +18,7 @@ public abstract class ExtremeLemma : Method {
     TypeOfK = lemma.TypeOfK;
   }
 
-  public ExtremeLemma(IOrigin rangeOrigin, Name name,
+  public ExtremeLemma(IOrigin origin, Name nameNode,
     bool hasStaticKeyword, ExtremePredicate.KType typeOfK,
     List<TypeParameter> typeArgs,
     List<Formal> ins, [Captured] List<Formal> outs,
@@ -29,9 +29,9 @@ public abstract class ExtremeLemma : Method {
     Specification<Expression> decreases,
     BlockStmt body,
     Attributes attributes, IOrigin signatureEllipsis)
-    : base(rangeOrigin, name, hasStaticKeyword, true, typeArgs, ins, outs, req, reads, mod, ens, decreases, body, attributes, signatureEllipsis) {
-    Contract.Requires(rangeOrigin != null);
-    Contract.Requires(name != null);
+    : base(origin, nameNode, attributes, hasStaticKeyword, true, typeArgs, ins, req, ens, reads, decreases, outs, mod, body, signatureEllipsis) {
+    Contract.Requires(origin != null);
+    Contract.Requires(nameNode != null);
     Contract.Requires(cce.NonNullElements(typeArgs));
     Contract.Requires(cce.NonNullElements(ins));
     Contract.Requires(cce.NonNullElements(outs));
@@ -48,7 +48,7 @@ public abstract class ExtremeLemma : Method {
 public class LeastLemma : ExtremeLemma {
   public override string WhatKind => "least lemma";
 
-  public LeastLemma(IOrigin rangeOrigin, Name name,
+  public LeastLemma(IOrigin origin, Name nameNode,
     bool hasStaticKeyword, ExtremePredicate.KType typeOfK,
     List<TypeParameter> typeArgs,
     List<Formal> ins, [Captured] List<Formal> outs,
@@ -59,9 +59,9 @@ public class LeastLemma : ExtremeLemma {
     Specification<Expression> decreases,
     BlockStmt body,
     Attributes attributes, IOrigin signatureEllipsis)
-    : base(rangeOrigin, name, hasStaticKeyword, typeOfK, typeArgs, ins, outs, req, reads, mod, ens, decreases, body, attributes, signatureEllipsis) {
-    Contract.Requires(rangeOrigin != null);
-    Contract.Requires(name != null);
+    : base(origin, nameNode, hasStaticKeyword, typeOfK, typeArgs, ins, outs, req, reads, mod, ens, decreases, body, attributes, signatureEllipsis) {
+    Contract.Requires(origin != null);
+    Contract.Requires(nameNode != null);
     Contract.Requires(cce.NonNullElements(typeArgs));
     Contract.Requires(cce.NonNullElements(ins));
     Contract.Requires(cce.NonNullElements(outs));
@@ -78,7 +78,7 @@ public class LeastLemma : ExtremeLemma {
 public class GreatestLemma : ExtremeLemma {
   public override string WhatKind => "greatest lemma";
 
-  public GreatestLemma(IOrigin rangeOrigin, Name name,
+  public GreatestLemma(IOrigin origin, Name nameNode,
     bool hasStaticKeyword, ExtremePredicate.KType typeOfK,
     List<TypeParameter> typeArgs,
     List<Formal> ins, [Captured] List<Formal> outs,
@@ -89,9 +89,9 @@ public class GreatestLemma : ExtremeLemma {
     Specification<Expression> decreases,
     BlockStmt body,
     Attributes attributes, IOrigin signatureEllipsis)
-    : base(rangeOrigin, name, hasStaticKeyword, typeOfK, typeArgs, ins, outs, req, reads, mod, ens, decreases, body, attributes, signatureEllipsis) {
-    Contract.Requires(rangeOrigin != null);
-    Contract.Requires(name != null);
+    : base(origin, nameNode, hasStaticKeyword, typeOfK, typeArgs, ins, outs, req, reads, mod, ens, decreases, body, attributes, signatureEllipsis) {
+    Contract.Requires(origin != null);
+    Contract.Requires(nameNode != null);
     Contract.Requires(cce.NonNullElements(typeArgs));
     Contract.Requires(cce.NonNullElements(ins));
     Contract.Requires(cce.NonNullElements(outs));

@@ -1,3 +1,4 @@
+#nullable enable
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.Linq;
@@ -5,8 +6,8 @@ using System.Linq;
 namespace Microsoft.Dafny;
 
 public class VarDeclStmt : Statement, ICloneable<VarDeclStmt>, ICanFormat {
-  public readonly List<LocalVariable> Locals;
-  public readonly ConcreteAssignStatement Assign;
+  public List<LocalVariable> Locals;
+  public ConcreteAssignStatement? Assign;
   [ContractInvariantMethod]
   void ObjectInvariant() {
     Contract.Invariant(cce.NonNullElements(Locals));
@@ -22,9 +23,9 @@ public class VarDeclStmt : Statement, ICloneable<VarDeclStmt>, ICanFormat {
     Assign = (ConcreteAssignStatement)cloner.CloneStmt(original.Assign, false);
   }
 
-  public VarDeclStmt(IOrigin rangeOrigin, List<LocalVariable> locals, ConcreteAssignStatement assign)
-    : base(rangeOrigin) {
-    Contract.Requires(locals != null);
+  [SyntaxConstructor]
+  public VarDeclStmt(IOrigin origin, List<LocalVariable> locals, ConcreteAssignStatement? assign, Attributes? attributes = null)
+    : base(origin, attributes) {
     Contract.Requires(locals.Count != 0);
 
     Locals = locals;
@@ -56,7 +57,7 @@ public class VarDeclStmt : Statement, ICloneable<VarDeclStmt>, ICanFormat {
 
   public override void ResolveGhostness(ModuleResolver resolver, ErrorReporter reporter, bool mustBeErasable,
     ICodeContext codeContext,
-    string proofContext, bool allowAssumptionVariables, bool inConstructorInitializationPhase) {
+    string? proofContext, bool allowAssumptionVariables, bool inConstructorInitializationPhase) {
     if (mustBeErasable) {
       foreach (var local in Locals) {
         // a local variable in a specification-only context might as well be ghost
@@ -73,15 +74,15 @@ public class VarDeclStmt : Statement, ICloneable<VarDeclStmt>, ICanFormat {
       if (Attributes.Contains(local.Attributes, "assumption")) {
         if (allowAssumptionVariables) {
           if (!local.Type.IsBoolType) {
-            reporter.Error(MessageSource.Resolver, ResolutionErrors.ErrorId.r_assumption_var_must_be_bool, local.Tok,
+            reporter.Error(MessageSource.Resolver, ResolutionErrors.ErrorId.r_assumption_var_must_be_bool, local.Origin,
               "assumption variable must be of type 'bool'");
           }
           if (!local.IsGhost) {
-            reporter.Error(MessageSource.Resolver, ResolutionErrors.ErrorId.r_assumption_var_must_be_ghost, local.Tok,
+            reporter.Error(MessageSource.Resolver, ResolutionErrors.ErrorId.r_assumption_var_must_be_ghost, local.Origin,
               "assumption variable must be ghost");
           }
         } else {
-          reporter.Error(MessageSource.Resolver, ResolutionErrors.ErrorId.r_assumption_var_must_be_in_method, local.Tok,
+          reporter.Error(MessageSource.Resolver, ResolutionErrors.ErrorId.r_assumption_var_must_be_in_method, local.Origin,
             "assumption variable can only be declared in a method");
         }
       }

@@ -24,8 +24,8 @@ public class InductionRewriter : IRewriter {
               ProcessMethodExpressions(method);
               ComputeLemmaInduction(method.PrefixLemma);
               ProcessMethodExpressions(method.PrefixLemma);
-            } else if (member is Method) {
-              var method = (Method)member;
+            } else if (member is MethodOrConstructor) {
+              var method = (MethodOrConstructor)member;
               ComputeLemmaInduction(method);
               ProcessMethodExpressions(method);
             } else if (member is ExtremePredicate) {
@@ -49,7 +49,8 @@ public class InductionRewriter : IRewriter {
       }
     }
   }
-protected void ProcessMethodExpressions(Method method) {
+
+  protected void ProcessMethodExpressions(MethodOrConstructor method) {
     Contract.Requires(method != null);
     var visitor = new InductionVisitor(this);
     method.Req.ForEach(mfe => visitor.Visit(mfe.E));
@@ -69,20 +70,20 @@ protected void ProcessMethodExpressions(Method method) {
     }
   }
 
-  void ComputeLemmaInduction(Method method) {
+  void ComputeLemmaInduction(MethodOrConstructor method) {
     Contract.Requires(method != null);
     if (method is { IsGhost: true, AllowsAllocation: false, Outs: { Count: 0 }, Body: not null } and not ExtremeLemma) {
-      Expression pre = Expression.CreateBoolLiteral(method.Tok, true);
+      Expression pre = Expression.CreateBoolLiteral(method.Origin, true);
       foreach (var req in method.Req) {
         pre = Expression.CreateAnd(pre, req.E);
       }
 
-      Expression post = Expression.CreateBoolLiteral(method.Tok, true);
+      Expression post = Expression.CreateBoolLiteral(method.Origin, true);
       foreach (var ens in method.Ens) {
         post = Expression.CreateAnd(post, ens.E);
       }
 
-      ComputeInductionVariables(method.Tok, method.Ins, Expression.CreateImplies(pre, post), method, ref method.Attributes);
+      ComputeInductionVariables(method.Origin, method.Ins, Expression.CreateImplies(pre, post), method, ref method.Attributes);
     }
   }
 
@@ -92,7 +93,7 @@ protected void ProcessMethodExpressions(Method method) {
   /// "body" is the condition that the induction would support.
   /// </summary>
   void ComputeInductionVariables<TVarType>(IOrigin tok, List<TVarType> boundVars, Expression body,
-    [CanBeNull] Method lemma, ref Attributes attributes) where TVarType : class, IVariable {
+    [CanBeNull] MethodOrConstructor lemma, ref Attributes attributes) where TVarType : class, IVariable {
     Contract.Requires(tok != null);
     Contract.Requires(boundVars != null);
     Contract.Requires(body != null);
@@ -139,7 +140,7 @@ protected void ProcessMethodExpressions(Method method) {
           }
 
           if (0 <= j) {
-            ReportWarning(ErrorId.rw_induction_arguments_quantifier_mismatch, arg.Tok,
+            ReportWarning(ErrorId.rw_induction_arguments_quantifier_mismatch, arg.Origin,
               "{0}s given as :induction arguments must be given in the same order as in the {1}; ignoring attribute",
               lemma != null ? "lemma parameter" : "bound variable", lemma != null ? "lemma" : "quantifier");
             return;
@@ -152,12 +153,12 @@ protected void ProcessMethodExpressions(Method method) {
             continue;
           }
 
-          ReportWarning(ErrorId.rw_induction_arguments_lemma_mismatch, arg.Tok,
+          ReportWarning(ErrorId.rw_induction_arguments_lemma_mismatch, arg.Origin,
             "lemma parameters given as :induction arguments must be given in the same order as in the lemma; ignoring attribute");
           return;
         }
 
-        ReportWarning(ErrorId.rw_invalid_induction_attribute, arg.Tok,
+        ReportWarning(ErrorId.rw_invalid_induction_attribute, arg.Origin,
           "invalid :induction attribute argument; expected {0}{1}; ignoring attribute",
           i == 0 ? "'false' or 'true' or " : "",
           lemma != null ? "lemma parameter" : "bound variable");
@@ -168,7 +169,7 @@ protected void ProcessMethodExpressions(Method method) {
       // Next, look for matching patterns for the induction hypothesis.
       if (lemma != null) {
         var triggers = ComputeInductionTriggers(goodArguments, body, lemma.EnclosingClass.EnclosingModuleDefinition, tok, ref attributes);
-        ReportInductionTriggers(lemma.Tok, lemma, attributes);
+        ReportInductionTriggers(lemma.Origin, lemma, attributes);
       }
 
       attributes = new Attributes("_induction", goodArguments, attributes);
@@ -187,7 +188,7 @@ protected void ProcessMethodExpressions(Method method) {
     foreach (IVariable n in boundVars) {
       if (!(n.Type.IsTypeParameter || n.Type.IsAbstractType || n.Type.IsInternalTypeSynonym || n.Type.IsArrowType) &&
           (args != null || InductionHeuristic.VarOccursInArgumentToRecursiveFunction(Reporter.Options, body, n))) {
-        inductionVariables.Add(new IdentifierExpr(n.Tok, n));
+        inductionVariables.Add(new IdentifierExpr(n.Origin, n));
       }
     }
 
@@ -222,7 +223,7 @@ protected void ProcessMethodExpressions(Method method) {
   /// <summary>
   /// Report as tooltips the matching patterns selected for the induction hypothesis.
   /// </summary>
-  private void ReportInductionTriggers(IOrigin tok, [CanBeNull] Method lemma, Attributes attributes) {
+  private void ReportInductionTriggers(IOrigin tok, [CanBeNull] MethodOrConstructor lemma, Attributes attributes) {
     foreach (var trigger in attributes.AsEnumerable().Where(attr => attr.Name == "_inductionTrigger")) {
       var ss = Printer.OneAttributeToString(Reporter.Options, trigger, "inductionTrigger");
       if (lemma is PrefixLemma) {
@@ -249,7 +250,7 @@ protected void ProcessMethodExpressions(Method method) {
     if (Attributes.Contains(attributes, "inductionTrigger")) {
       // Empty triggers are not valid at the Boogie level, but they indicate that we don't want automatic selection
       Triggers.SplitPartTriggerWriter.DisableEmptyTriggers(attributes, "inductionTrigger");
-      return Attributes.FindAllExpressions(attributes, "inductionTrigger") ?? new List<List<Expression>>(); // Never null
+      return Attributes.FindAllExpressions(attributes, "inductionTrigger") ?? []; // Never null
     }
 
     // Construct a quantifier, because that's what the trigger-generating machinery expects.
@@ -259,7 +260,7 @@ protected void ProcessMethodExpressions(Method method) {
     var reverseSubstMap = new Dictionary<IVariable, Expression>();
     Expression receiverReplacement = null;
     foreach (var inductionVariableExpr in inductionVariables) {
-      var tok = inductionVariableExpr.Tok;
+      var tok = inductionVariableExpr.Origin;
       BoundVar boundVar;
       if (inductionVariableExpr is IdentifierExpr identifierExpr) {
         boundVar = new BoundVar(tok, identifierExpr.Var.Name, identifierExpr.Var.Type);
@@ -274,7 +275,7 @@ protected void ProcessMethodExpressions(Method method) {
     }
 
     var substituter = new Substituter(receiverReplacement, substMap, new Dictionary<TypeParameter, Type>());
-    var quantifier = new ForallExpr(body.Tok, body.Origin, boundVars, null, substituter.Substitute(body), null) {
+    var quantifier = new ForallExpr(body.Origin, boundVars, null, substituter.Substitute(body), null) {
       Type = Type.Bool
     };
 
@@ -298,7 +299,7 @@ protected void ProcessMethodExpressions(Method method) {
       Reporter.Message(MessageSource.Rewriter, warningLevel, null, errorToken,
         "Could not find a trigger for the induction hypothesis. Without a trigger, this may cause brittle verification. " +
         "Change or remove the {:induction} attribute to generate a different induction hypothesis, or add {:nowarn} to silence this warning. " +
-        "For more information, see the section quantifier instantiation rules in the reference manual.");
+        "For more information, see the section on quantifier instantiation rules in the reference manual.");
     }
 
     foreach (var trigger in result) {
@@ -317,7 +318,9 @@ protected void ProcessMethodExpressions(Method method) {
 
     protected override void VisitOneExpr(Expression expr) {
       if (expr is QuantifierExpr { SplitQuantifier: null } q) {
-        IndRewriter.ComputeInductionVariables(q.Tok, q.BoundVars, q.LogicalBody(), null, ref q.Attributes);
+        var attributes = q.Attributes;
+        IndRewriter.ComputeInductionVariables(q.Origin, q.BoundVars, q.LogicalBody(), null, ref attributes);
+        q.Attributes = attributes;
       }
     }
   }

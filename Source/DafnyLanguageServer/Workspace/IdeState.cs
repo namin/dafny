@@ -165,7 +165,7 @@ public record IdeState(
       };
       result = new[] { new FileDiagnostic(Input.Project.Uri, diagnostic) };
     } else {
-      result = Enumerable.Empty<FileDiagnostic>();
+      result = [];
     }
 
     return result;
@@ -234,8 +234,8 @@ public record IdeState(
   private IdeState HandleScheduledVerification(ScheduledVerification scheduledVerification) {
     var previousState = this;
 
-    var uri = scheduledVerification.CanVerify.NavigationToken.Uri;
-    var range = scheduledVerification.CanVerify.NavigationToken.GetLspRange();
+    var uri = scheduledVerification.CanVerify.NavigationRange.Uri;
+    var range = scheduledVerification.CanVerify.NavigationRange.ToLspRange();
     var previousVerificationResult = previousState.CanVerifyStates[uri][range];
     var previousImplementations = previousVerificationResult.VerificationTasks;
     var preparationProgress = new[]
@@ -309,8 +309,8 @@ public record IdeState(
 
     var verificationResults = finishedResolution.Result.CanVerifies == null
       ? previousState.CanVerifyStates
-      : finishedResolution.Result.CanVerifies.GroupBy(l => l.NavigationToken.Uri).ToImmutableDictionary(k => k.Key,
-        k => k.GroupBy<ICanVerify, Range>(l => l.NavigationToken.GetLspRange()).ToImmutableDictionary(
+      : finishedResolution.Result.CanVerifies.GroupBy(l => l.NavigationRange.Uri).ToImmutableDictionary(k => k.Key,
+        k => k.GroupBy<ICanVerify, Range>(l => l.NavigationRange.ToLspRange()).ToImmutableDictionary(
           l => l.Key,
           l => MergeResults(l.Select(canVerify => MergeVerifiable(previousState, canVerify)))));
     var signatureAndCompletionTable = legacySignatureAndCompletionTable.Resolved
@@ -346,8 +346,8 @@ public record IdeState(
   }
 
   private static IdeCanVerifyState MergeVerifiable(IdeState previousState, ICanVerify canVerify) {
-    var range = canVerify.NavigationToken.GetLspRange();
-    var previousIdeCanVerifyState = previousState.GetVerificationResults(canVerify.NavigationToken.Uri).GetValueOrDefault(range);
+    var range = canVerify.NavigationRange.ToLspRange();
+    var previousIdeCanVerifyState = previousState.GetVerificationResults(canVerify.NavigationRange.Uri).GetValueOrDefault(range);
     var previousImplementations =
       previousIdeCanVerifyState?.VerificationTasks ??
       ImmutableDictionary<string, IdeVerificationTaskState>.Empty;
@@ -387,11 +387,11 @@ public record IdeState(
     var implementations = canVerifyPartsIdentified.Parts.Select(t => t.Split.Implementation).Distinct();
     var gutterIconManager = new GutterIconAndHoverVerificationDetailsManager(logger);
 
-    var uri = canVerifyPartsIdentified.CanVerify.Tok.Uri;
+    var uri = canVerifyPartsIdentified.CanVerify.Origin.Uri;
     gutterIconManager.ReportImplementationsBeforeVerification(previousState,
       canVerifyPartsIdentified.CanVerify, implementations.ToArray());
 
-    var range = canVerifyPartsIdentified.CanVerify.NavigationToken.GetLspRange();
+    var range = canVerifyPartsIdentified.CanVerify.NavigationRange.ToLspRange();
     var previousImplementations = previousState.CanVerifyStates[uri][range].VerificationTasks;
     var verificationResult = new IdeCanVerifyState(PreparationProgress: VerificationPreparationState.Done,
       VerificationTasks: canVerifyPartsIdentified.Parts.ToImmutableDictionary(Compilation.GetTaskName,
@@ -411,8 +411,8 @@ public record IdeState(
     var previousState = this;
 
     var name = Compilation.GetTaskName(boogieException.Task);
-    var uri = boogieException.CanVerify.Tok.Uri;
-    var range = boogieException.CanVerify.NavigationToken.GetLspRange();
+    var uri = boogieException.CanVerify.Origin.Uri;
+    var range = boogieException.CanVerify.NavigationRange.ToLspRange();
 
     var previousVerificationResult = previousState.CanVerifyStates[uri][range];
     var previousImplementations = previousVerificationResult.VerificationTasks;
@@ -442,8 +442,8 @@ public record IdeState(
 
     var name = Compilation.GetTaskName(boogieUpdate.VerificationTask);
     var status = StatusFromBoogieStatus(boogieUpdate.BoogieStatus);
-    var uri = boogieUpdate.CanVerify.Tok.Uri;
-    var range = boogieUpdate.CanVerify.NavigationToken.GetLspRange();
+    var uri = boogieUpdate.CanVerify.Origin.Uri;
+    var range = boogieUpdate.CanVerify.NavigationRange.ToLspRange();
 
     var previousVerificationResult = previousState.CanVerifyStates[uri][range];
     var previousImplementations = previousVerificationResult.VerificationTasks;
@@ -482,7 +482,7 @@ public record IdeState(
     if (allTasksAreCompleted) {
 
       var errorReporter = new ObservableErrorReporter(options, uri);
-      List<DafnyDiagnostic> verificationCoverageDiagnostics = new();
+      List<DafnyDiagnostic> verificationCoverageDiagnostics = [];
       errorReporter.Updates.Subscribe(d => verificationCoverageDiagnostics.Add(d.Diagnostic));
 
       ProofDependencyWarnings.ReportSuspiciousDependencies(options,

@@ -1,6 +1,5 @@
 // Copyright by the contributors to the Dafny Project
 // SPDX-License-Identifier: MIT
-
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -26,6 +25,16 @@ namespace Microsoft.Dafny {
 
   public static class Util {
 
+    public static IEnumerable<T> IgnoreNulls<T>(params T[] values) {
+      var result = new List<T>();
+      foreach (var value in values) {
+        if (value != null) {
+          result.Add(value);
+        }
+      }
+
+      return result;
+    }
     public static Task WaitForComplete<T>(this IObservable<T> observable) {
       var result = new TaskCompletionSource();
       observable.Subscribe(_ => { }, e => result.SetException(e), () => result.SetResult());
@@ -144,7 +153,7 @@ namespace Microsoft.Dafny {
     }
 
     public static List<B> Map<A, B>(IEnumerable<A> xs, Func<A, B> f) {
-      List<B> ys = new List<B>();
+      List<B> ys = [];
       foreach (A x in xs) {
         ys.Add(f(x));
       }
@@ -152,11 +161,11 @@ namespace Microsoft.Dafny {
     }
 
     public static List<A> Nil<A>() {
-      return new List<A>();
+      return [];
     }
 
     public static List<A> Singleton<A>(A x) {
-      return new List<A> { x };
+      return [x];
     }
 
     public static List<A> List<A>(params A[] xs) {
@@ -172,7 +181,7 @@ namespace Microsoft.Dafny {
     }
 
     public static List<A> Concat<A>(List<A> xs, List<A> ys) {
-      List<A> cpy = new List<A>(xs);
+      List<A> cpy = [.. xs];
       cpy.AddRange(ys);
       return cpy;
     }
@@ -455,14 +464,14 @@ namespace Microsoft.Dafny {
       Contract.Requires(errors != null);
       if (performThisDeprecationCheck) {
         if (fe.E is ThisExpr) {
-          errors.Deprecated(ErrorId.g_deprecated_this_in_constructor_modifies_clause, fe.E.Tok, "constructors no longer need 'this' to be listed in modifies clauses");
+          errors.Deprecated(ErrorId.g_deprecated_this_in_constructor_modifies_clause, fe.E.Origin, "constructors no longer need 'this' to be listed in modifies clauses");
           return;
         } else if (fe.E is SetDisplayExpr) {
           var s = (SetDisplayExpr)fe.E;
           var deprecated = s.Elements.FindAll(e => e is ThisExpr);
           if (deprecated.Count != 0) {
             foreach (var e in deprecated) {
-              errors.Deprecated(ErrorId.g_deprecated_this_in_constructor_modifies_clause, e.Tok, "constructors no longer need 'this' to be listed in modifies clauses");
+              errors.Deprecated(ErrorId.g_deprecated_this_in_constructor_modifies_clause, e.Origin, "constructors no longer need 'this' to be listed in modifies clauses");
             }
             s.Elements.RemoveAll(e => e is ThisExpr);
             if (s.Elements.Count == 0) {
@@ -495,7 +504,7 @@ namespace Microsoft.Dafny {
           if (decl is TopLevelDeclWithMembers c) {
             foreach (var member in c.Members) {
               if (member is Function f) {
-                List<Function> calls = new List<Function>();
+                List<Function> calls = [];
                 foreach (var e in f.Reads.Expressions) { if (e != null && e.E != null) { callFinder.Visit(e.E, calls); } }
                 foreach (var e in f.Req) { if (e != null) { callFinder.Visit(e, calls); } }
                 foreach (var e in f.Ens) { if (e != null) { callFinder.Visit(e, calls); } }
@@ -621,9 +630,9 @@ namespace Microsoft.Dafny {
                 if (f.IsRecursive) {
                   IncrementStat(stats, "Functions recursive");
                 }
-              } else if (member is Method) {
+              } else if (member is MethodOrConstructor) {
                 IncrementStat(stats, "Methods (total)");
-                var method = (Method)member;
+                var method = (MethodOrConstructor)member;
                 if (method.IsRecursive) {
                   IncrementStat(stats, "Methods recursive");
                 }
@@ -673,7 +682,7 @@ namespace Microsoft.Dafny {
       if (found) {
         existingDependencies.Add(include.CanonicalPath);
       } else {
-        dependencies[key] = new SortedSet<string>() { include.CanonicalPath };
+        dependencies[key] = [include.CanonicalPath];
       }
     }
 
@@ -686,7 +695,7 @@ namespace Microsoft.Dafny {
     }
 
     public void PrintMap(DafnyOptions options) {
-      SortedSet<string> leaves = new SortedSet<string>(); // Files that don't themselves include any files
+      SortedSet<string> leaves = []; // Files that don't themselves include any files
       foreach (string target in dependencies.Keys) {
         options.OutputWriter.Write(target);
         foreach (string dependency in dependencies[target]) {

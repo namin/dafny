@@ -56,6 +56,12 @@ module Std.Collections.Seq {
     xs[..|xs|-1]
   }
 
+  lemma TakeLess<T>(s: seq<T>, m: nat, n: nat)
+    requires m <= n <= |s|
+    ensures s[..n][..m] == s[..m]
+  {
+  }
+
   /* The concatenation of two subsequences of a non-empty sequence, the first obtained
      from dropping the last element, the second consisting only of the last
      element, is the original sequence. */
@@ -202,6 +208,39 @@ module Std.Collections.Seq {
       assert forall i :: 0 <= i < |xs| ==> zs[i] in multiset(xs);
       assert forall j :: |xs| <= j < |zs| ==> zs[j] in multiset(ys);
       assert forall i, j :: 0 <= i < |xs| <= j < |zs| ==> zs[i] != zs[j];
+    }
+  }
+
+  /* The inverse of LemmaNoDuplicatesInConcat:
+     If the concatenated sequence xs + ys doesn't have duplicates,
+     then xs and ys don't either and are disjoint. */
+  lemma LemmaNoDuplicatesDecomposition<T>(xs: seq<T>, ys: seq<T>)
+    requires HasNoDuplicates(xs+ys)
+    ensures HasNoDuplicates(xs)
+    ensures HasNoDuplicates(ys)
+    ensures multiset(xs) !! multiset(ys)
+  {
+    var zs := xs + ys;
+    if !HasNoDuplicates(xs) {
+      assert false by {
+        var i, j :| 0 <= i < j < |xs| && xs[i] == xs[j];
+        assert zs[i] == zs[j];
+        assert !HasNoDuplicates(zs);
+      }
+    }
+    if !HasNoDuplicates(ys) {
+      assert false by {
+        var i, j :| 0 <= i < j < |ys| && ys[i] == ys[j];
+        assert zs[|xs| + i] == zs[|xs| + j];
+        assert !HasNoDuplicates(zs);
+      }
+    }
+    if !(multiset(xs) !! multiset(ys)) {
+      assert false by {
+        var i, j :| 0 <= i < |xs| && 0 <= j < |ys| && xs[i] == ys[j];
+        assert zs[i] == zs[|xs| + j];
+        assert !HasNoDuplicates(zs);
+      }
     }
   }
 
@@ -662,15 +701,16 @@ module Std.Collections.Seq {
 
   @ResourceLimit("1e6")
   @IsolateAssertions
-  lemma WillSplitOnDelim<T>(s: seq<T>, delim: T, prefix: seq<T>)
+  lemma {:induction false} WillSplitOnDelim<T>(s: seq<T>, delim: T, prefix: seq<T>)
     requires |prefix| < |s|
     requires forall i :: 0 <= i < |prefix| ==> prefix[i] == s[i]
     requires delim !in prefix && s[|prefix|] == delim
     ensures Split(s, delim) == [prefix] + Split(s[|prefix| + 1..], delim)
   {
+    hide *;
     calc {
       Split(s, delim);
-    ==
+    ==  { reveal Split(); }
       var i := IndexOfOption(s, delim);
       if i.Some? then [s[..i.value]] + Split(s[i.value + 1..], delim) else [s];
     ==  { IndexOfOptionLocatesElem(s, delim, |prefix|); assert IndexOfOption(s, delim).Some?; }
@@ -710,7 +750,7 @@ module Std.Collections.Seq {
 
   /* Returns the sequence one obtains by applying a function to every element
      of a sequence. */
-  opaque function Map<T, R>(f: (T ~> R), xs: seq<T>): (result: seq<R>)
+  opaque function Map<T, R>(f: T ~> R, xs: seq<T>): (result: seq<R>)
     requires forall i :: 0 <= i < |xs| ==> f.requires(xs[i])
     ensures |result| == |xs|
     ensures forall i {:trigger result[i]} :: 0 <= i < |xs| ==> result[i] == f(xs[i])
@@ -718,6 +758,12 @@ module Std.Collections.Seq {
   {
     if |xs| == 0 then []
     else [f(xs[0])] + Map(f, xs[1..])
+  }
+
+  function MapPartialFunction<T, R>(f: T --> R, xs: seq<T>): (result: seq<R>)
+    requires forall i :: 0 <= i < |xs| ==> f.requires(xs[i])
+  {
+    Map(f, xs)
   }
 
   /* Applies a function to every element of a sequence, returning a Result value (which is a
@@ -761,6 +807,25 @@ module Std.Collections.Seq {
     }
   }
 
+  lemma {:induction false} LemmaMapPartialFunctionDistributesOverConcat<T, R>(f: T --> R, xs: seq<T>, ys: seq<T>)
+    requires X: forall i :: 0 <= i < |xs| ==> f.requires(xs[i])
+    requires Y: forall j :: 0 <= j < |ys| ==> f.requires(ys[j])
+    ensures MapPartialFunction(f, xs + ys) == MapPartialFunction(f, xs) + MapPartialFunction(f, ys)
+  {
+    if |xs| == 0 {
+      assert xs + ys == ys;
+    } else {
+      calc {
+        MapPartialFunction(f, reveal X, Y; xs + ys);
+        { assert (xs + ys)[0] == xs[0]; assert (xs + ys)[1..] == xs[1..] + ys; }
+        MapPartialFunction(f, [xs[0]]) + MapPartialFunction(f, xs[1..] + ys);
+        MapPartialFunction(f, [xs[0]]) + MapPartialFunction(f, reveal X; xs[1..]) + MapPartialFunction(f, reveal Y; ys);
+        { assert [(xs + ys)[0]] + xs[1..] + ys == xs + ys; }
+        MapPartialFunction(f, xs) + MapPartialFunction(f, ys);
+      }
+    }
+  }
+
   /* Returns the subsequence consisting of those elements of a sequence that satisfy a given
      predicate. */
   opaque function Filter<T>(f: (T ~> bool), xs: seq<T>): (result: seq<T>)
@@ -778,7 +843,7 @@ module Std.Collections.Seq {
      concatenating the two resulting sequences. */
   @IsolateAssertions
   lemma {:induction false}
-    LemmaFilterDistributesOverConcat<T(!new)>(f: T ~> bool, xs: seq<T>, ys: seq<T>)
+    LemmaFilterDistributesOverConcat<T>(f: T ~> bool, xs: seq<T>, ys: seq<T>)
     requires forall i :: 0 <= i < |xs| ==> f.requires(xs[i])
     requires forall j :: 0 <= j < |ys| ==> f.requires(ys[j])
     ensures Filter(f, xs + ys) == Filter(f, xs) + Filter(f, ys)
@@ -916,78 +981,6 @@ module Std.Collections.Seq {
     }
   }
 
-
-  /**********************************************************
-   *
-   *  Sets to Ordered Sequences
-   *
-   ***********************************************************/
-
-  /* Converts a set to a sequence (ghost). */
-  ghost function SetToSeqSpec<T>(s: set<T>): (xs: seq<T>)
-    ensures multiset(s) == multiset(xs)
-  {
-    if s == {} then [] else var x :| x in s; [x] + SetToSeqSpec(s - {x})
-  }
-
-  /* Converts a set to a sequence (compiled). */
-  method SetToSeq<T>(s: set<T>) returns (xs: seq<T>)
-    ensures multiset(s) == multiset(xs)
-  {
-    xs := [];
-    var left: set<T> := s;
-    while left != {}
-      invariant multiset(left) + multiset(xs) == multiset(s)
-    {
-      var x :| x in left;
-      left := left - {x};
-      xs := xs + [x];
-    }
-  }
-
-  /* Proves that any two sequences that are sorted by a total order and that have the same elements are equal. */
-  lemma SortedUnique<T(!new)>(xs: seq<T>, ys: seq<T>, R: (T, T) -> bool)
-    requires SortedBy(R, xs)
-    requires SortedBy(R, ys)
-    requires TotalOrdering(R)
-    requires multiset(xs) == multiset(ys)
-    ensures xs == ys
-  {
-    if xs == [] {
-      assert multiset(xs) == multiset{};
-      assert multiset(ys) == multiset{};
-      assert ys == [];
-    } else {
-      assert xs == [xs[0]] + xs[1..];
-      assert ys == [ys[0]] + ys[1..];
-      assert multiset(xs[1..]) == multiset(xs) - multiset{xs[0]};
-      assert multiset(ys[1..]) == multiset(ys) - multiset{ys[0]};
-      assert multiset(xs[1..]) == multiset(ys[1..]);
-      SortedUnique(xs[1..], ys[1..], R);
-    }
-  }
-
-  /* Converts a set to a sequence that is ordered w.r.t. a given total order (ghost). */
-  ghost function SetToSortedSeqSpec<T(!new)>(s: set<T>, R: (T, T) -> bool): (xs: seq<T>)
-    requires TotalOrdering(R)
-    ensures multiset(s) == multiset(xs)
-    ensures SortedBy(R, xs)
-  {
-    MergeSortBy(R, SetToSeqSpec(s))
-  }
-
-  /* Converts a set to a sequence that is ordered w.r.t. a given total order (compiled). */
-  method SetToSortedSeq<T(!new)>(s: set<T>, R: (T, T) -> bool) returns (xs: seq<T>)
-    requires TotalOrdering(R)
-    ensures multiset(s) == multiset(xs)
-    ensures SortedBy(R, xs)
-  {
-    xs := SetToSeq(s);
-    xs := MergeSortBy(R, xs);
-    SortedUnique(xs, SetToSortedSeqSpec(s, R), R);
-  }
-
-
   /****************************
    **  Sorting sequences
    ***************************** */
@@ -1044,4 +1037,153 @@ module Std.Collections.Seq {
     requires TotalOrdering(lessOrEqual)
     ensures SortedBy(lessOrEqual, [newFirst] + s)
   {}
+
+  /* Proves that any two sequences that are sorted by a total order and that have the same elements are equal. */
+  lemma SortedUnique<T(!new)>(xs: seq<T>, ys: seq<T>, R: (T, T) -> bool)
+    requires SortedBy(R, xs)
+    requires SortedBy(R, ys)
+    requires TotalOrdering(R)
+    requires multiset(xs) == multiset(ys)
+    ensures xs == ys
+  {
+    if xs == [] {
+      assert multiset(xs) == multiset{};
+      assert multiset(ys) == multiset{};
+      assert ys == [];
+    } else {
+      assert xs == [xs[0]] + xs[1..];
+      assert ys == [ys[0]] + ys[1..];
+      assert multiset(xs[1..]) == multiset(xs) - multiset{xs[0]};
+      assert multiset(ys[1..]) == multiset(ys) - multiset{ys[0]};
+      assert multiset(xs[1..]) == multiset(ys[1..]);
+      SortedUnique(xs[1..], ys[1..], R);
+    }
+  }
+
+  /**********************************************************
+   *
+   *  Partitions
+   *
+   ***********************************************************/
+
+  predicate All<T>(s: seq<T>, p: T -> bool) {
+    forall i {:trigger s[i]} | 0 <= i < |s| :: p(s[i])
+  }
+
+  predicate AllNot<T>(s: seq<T>, p: T -> bool) {
+    forall i {:trigger s[i]} | 0 <= i < |s| :: !p(s[i])
+  }
+
+  lemma AllDecomposition<T>(left: seq<T>, right: seq<T>, p: T -> bool)
+    requires All(left + right, p)
+    ensures All(left, p)
+    ensures All(right, p)
+  {
+    forall i: nat | i < |left| ensures p(left[i]) {
+      assert (left + right)[i] == left[i];
+    }
+    forall i: nat | i < |right| ensures p(right[i]) {
+      assert (left + right)[|left| + i] == right[i];
+    }
+  }
+
+  lemma AllNotDecomposition<T>(left: seq<T>, right: seq<T>, p: T -> bool)
+    requires AllNot(left + right, p)
+    ensures AllNot(left, p)
+    ensures AllNot(right, p)
+  {
+    forall i: nat | i < |left| ensures !p(left[i]) {
+      assert (left + right)[i] == left[i];
+    }
+    forall i: nat | i < |right| ensures !p(right[i]) {
+      assert (left + right)[|left| + i] == right[i];
+    }
+  }
+
+  predicate Partitioned<T>(s: seq<T>, p: T -> bool) {
+    if s == [] then
+      true
+    else if p(s[0]) then
+      Partitioned(s[1..], p)
+    else
+      AllNot(s[1..], p)
+  }
+
+  lemma AllImpliesPartitioned<T>(s: seq<T>, p: T -> bool)
+    requires All(s, p)
+    ensures Partitioned(s, p)
+  {}
+
+  lemma AllNotImpliesPartitioned<T>(s: seq<T>, p: T -> bool)
+    requires AllNot(s, p)
+    ensures Partitioned(s, p)
+  {}
+
+  lemma PartitionedFirstFalseImpliesAllNot<T>(s: seq<T>, p: T -> bool)
+    requires Partitioned(s, p)
+    requires 0 < |s|
+    requires !p(First(s))
+    ensures AllNot(s, p)
+  {}
+
+  lemma PartitionedLastTrueImpliesAll<T>(s: seq<T>, p: T -> bool)
+    requires Partitioned(s, p)
+    requires 0 < |s|
+    requires p(Last(s))
+    ensures All(s, p)
+  {}
+
+  lemma PartitionedCompositionRight<T>(left: seq<T>, right: seq<T>, p: T -> bool)
+    requires Partitioned(left, p)
+    requires AllNot(right, p)
+    ensures Partitioned(left + right, p)
+  {
+    if left == [] {
+    } else {
+      if p(left[0]) {
+        PartitionedCompositionRight(left[1..], right, p);
+        assert left == [left[0]] + left[1..];
+        PartitionedCompositionLeft([left[0]], left[1..] + right, p);
+        assert Partitioned([left[0]] + (left[1..] + right), p);
+        assert left + right == [left[0]] + (left[1..] + right);
+      } else {
+      }
+    }
+  }
+
+  lemma PartitionedCompositionLeft<T>(left: seq<T>, right: seq<T>, p: T -> bool)
+    requires All(left, p)
+    requires Partitioned(right, p)
+    ensures Partitioned(left + right, p)
+  {
+    if left == [] {
+      assert left + right == right;
+    } else {
+      PartitionedCompositionLeft(left[1..], right, p);
+      assert left + right == [left[0]] + (left[1..] + right);
+    }
+  }
+
+  lemma PartitionedDecomposition<T>(left: seq<T>, right: seq<T>, p: T -> bool)
+    requires Partitioned(left + right, p)
+    ensures Partitioned(left, p)
+    ensures Partitioned(right, p)
+  {
+    if left == [] {
+      assert right == left + right;
+    } else {
+      if !p(left[0]) {
+        PartitionedFirstFalseImpliesAllNot(left + right, p);
+        AllNotDecomposition(left, right, p);
+        assert AllNot(left, p);
+        PartitionedDecomposition(left[1..], right, p);
+      } else {
+        var combined := left + right;
+        assert p(combined[0]);
+        assert Partitioned(combined[1..], p);
+        assert combined[1..] == left[1..] + right;
+        PartitionedDecomposition(left[1..], right, p);
+      }
+    }
+  }
 }

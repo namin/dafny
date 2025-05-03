@@ -51,8 +51,8 @@ public static class BoogieOptionBag {
     IsHidden = true
   };
 
-  public static readonly Option<uint> VerificationTimeLimit = new("--verification-time-limit",
-    "Limit the number of seconds spent trying to verify each procedure") {
+  public static readonly Option<uint> VerificationTimeLimit = new("--verification-time-limit", () => 30,
+    "Limit the number of seconds spent trying to verify each assertion batch. A value of 0 indicates no limit") {
     ArgumentHelpName = "seconds",
   };
 
@@ -107,9 +107,14 @@ public static class BoogieOptionBag {
     });
     DafnyOptions.RegisterLegacyBinding(Cores,
       (o, f) => o.VcsCores = f == 0 ? (1 + System.Environment.ProcessorCount) / 2 : (int)f);
-    DafnyOptions.RegisterLegacyBinding(NoVerify, (options, value) => {
-      var shouldVerify = !value && !options.Get(HiddenNoVerify);
-      options.Verify = shouldVerify;
+    DafnyOptions.RegisterLegacyBinding(NoVerify, (options, dotNotVerify) => {
+      var shouldVerify = !dotNotVerify && !options.Get(HiddenNoVerify);
+      options.Verify = shouldVerify; // Boogie won't verify
+      options.DafnyVerify =
+        shouldVerify ||
+        options.Get(DeveloperOptionBag.BoogiePrint) != null ||
+        options.Get(DeveloperOptionBag.SplitPrint) != null ||
+        options.Get(DeveloperOptionBag.PassivePrint) != null;
     });
     DafnyOptions.RegisterLegacyBinding(VerificationTimeLimit, (o, f) => o.TimeLimit = f);
 

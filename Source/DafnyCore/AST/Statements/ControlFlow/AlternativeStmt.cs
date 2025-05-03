@@ -4,15 +4,15 @@ using System.Linq;
 
 namespace Microsoft.Dafny;
 
-public class AlternativeStmt : Statement, ICloneable<AlternativeStmt>, ICanFormat {
-  public readonly bool UsesOptionalBraces;
-  public readonly List<GuardedAlternative> Alternatives;
+public class AlternativeStmt : LabeledStatement, ICloneable<AlternativeStmt>, ICanFormat {
+  public bool UsesOptionalBraces;
+  public List<GuardedAlternative> Alternatives;
   [ContractInvariantMethod]
   void ObjectInvariant() {
     Contract.Invariant(Alternatives != null);
   }
 
-  public AlternativeStmt Clone(Cloner cloner) {
+  public new AlternativeStmt Clone(Cloner cloner) {
     return new AlternativeStmt(cloner, this);
   }
 
@@ -21,14 +21,12 @@ public class AlternativeStmt : Statement, ICloneable<AlternativeStmt>, ICanForma
     UsesOptionalBraces = original.UsesOptionalBraces;
   }
 
-  public AlternativeStmt(IOrigin rangeOrigin, List<GuardedAlternative> alternatives, bool usesOptionalBraces)
-    : base(rangeOrigin) {
-    Contract.Requires(alternatives != null);
-    Alternatives = alternatives;
-    UsesOptionalBraces = usesOptionalBraces;
+  public AlternativeStmt(IOrigin origin, List<GuardedAlternative> alternatives, bool usesOptionalBraces)
+    : this(origin, [], alternatives, usesOptionalBraces, null) {
   }
-  public AlternativeStmt(IOrigin rangeOrigin, List<GuardedAlternative> alternatives, bool usesOptionalBraces, Attributes attrs)
-    : base(rangeOrigin, attrs) {
+
+  public AlternativeStmt(IOrigin origin, List<Label> labels, List<GuardedAlternative> alternatives, bool usesOptionalBraces, Attributes attributes)
+    : base(origin, labels, attributes) {
     Contract.Requires(alternatives != null);
     Alternatives = alternatives;
     UsesOptionalBraces = usesOptionalBraces;
@@ -60,7 +58,7 @@ public class AlternativeStmt : Statement, ICloneable<AlternativeStmt>, ICanForma
 
   public void Resolve(INewOrOldResolver resolver, ResolutionContext resolutionContext) {
     if (!resolutionContext.IsGhost && resolver.Options.ForbidNondeterminism && 2 <= Alternatives.Count) {
-      resolver.Reporter.Error(MessageSource.Resolver, GeneratorErrors.ErrorId.c_case_based_if_forbidden, Tok,
+      resolver.Reporter.Error(MessageSource.Resolver, GeneratorErrors.ErrorId.c_case_based_if_forbidden, Origin,
         "case-based if statement forbidden by the --enforce-determinism option");
     }
     ResolveAlternatives(resolver, Alternatives, null, resolutionContext);
@@ -108,7 +106,7 @@ public class AlternativeStmt : Statement, ICloneable<AlternativeStmt>, ICanForma
     bool allowAssumptionVariables, bool inConstructorInitializationPhase) {
     IsGhost = mustBeErasable || Alternatives.Exists(alt => ExpressionTester.UsesSpecFeatures(alt.Guard));
     if (!mustBeErasable && IsGhost) {
-      resolver.Reporter.Info(MessageSource.Resolver, Tok, "ghost if");
+      resolver.Reporter.Info(MessageSource.Resolver, Origin, "ghost if");
     }
 
     Alternatives.ForEach(alt => alt.Body.ForEach(ss =>

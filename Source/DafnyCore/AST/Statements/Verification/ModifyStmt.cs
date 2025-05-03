@@ -4,8 +4,8 @@ using System.Diagnostics.Contracts;
 namespace Microsoft.Dafny;
 
 public class ModifyStmt : Statement, ICloneable<ModifyStmt>, ICanFormat {
-  public readonly Specification<FrameExpression> Mod;
-  public readonly BlockStmt Body;
+  public Specification<FrameExpression> Mod;
+  public BlockStmt Body;
 
   public ModifyStmt Clone(Cloner cloner) {
     return new ModifyStmt(cloner, this);
@@ -16,9 +16,9 @@ public class ModifyStmt : Statement, ICloneable<ModifyStmt>, ICanFormat {
     Body = cloner.CloneBlockStmt(original.Body);
   }
 
-  public ModifyStmt(IOrigin rangeOrigin, List<FrameExpression> mod, Attributes attrs, BlockStmt body)
-    : base(rangeOrigin) {
-    Contract.Requires(rangeOrigin != null);
+  public ModifyStmt(IOrigin origin, List<FrameExpression> mod, Attributes attrs, BlockStmt body)
+    : base(origin) {
+    Contract.Requires(origin != null);
     Contract.Requires(mod != null);
     Mod = new Specification<FrameExpression>(mod, attrs);
     Body = body;

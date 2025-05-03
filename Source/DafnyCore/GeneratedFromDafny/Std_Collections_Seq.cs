@@ -1,7 +1,7 @@
 // Dafny program the_program compiled into C#
 // To recompile, you will need the libraries
 //     System.Runtime.Numerics.dll System.Collections.Immutable.dll
-// but the 'dotnet' tool in net6.0 should pick those up automatically.
+// but the 'dotnet' tool in .NET should pick those up automatically.
 // Optionally, you may want to include compiler switches like
 //     /debug /nowarn:162,164,168,183,219,436,1717,1718
 
@@ -292,6 +292,10 @@ namespace Std.Collections.Seq {
         goto TAIL_CALL_START;
       }
     }
+    public static Dafny.ISequence<__R> MapPartialFunction<__T, __R>(Func<__T, __R> f, Dafny.ISequence<__T> xs)
+    {
+      return Std.Collections.Seq.__default.Map<__T, __R>(f, xs);
+    }
     public static Std.Wrappers._IResult<Dafny.ISequence<__R>, __E> MapWithResult<__T, __R, __E>(Func<__T, Std.Wrappers._IResult<__R, __E>> f, Dafny.ISequence<__T> xs)
     {
       if ((new BigInteger((xs).Count)).Sign == 0) {
@@ -350,36 +354,6 @@ namespace Std.Collections.Seq {
         return Dafny.Helpers.Id<Func<__T, __A, __A>>(f)((xs).Select(BigInteger.Zero), Std.Collections.Seq.__default.FoldRight<__A, __T>(f, (xs).Drop(BigInteger.One), init));
       }
     }
-    public static Dafny.ISequence<__T> SetToSeq<__T>(Dafny.ISet<__T> s)
-    {
-      Dafny.ISequence<__T> xs = Dafny.Sequence<__T>.Empty;
-      xs = Dafny.Sequence<__T>.FromElements();
-      Dafny.ISet<__T> _0_left;
-      _0_left = s;
-      while (!(_0_left).Equals(Dafny.Set<__T>.FromElements())) {
-        __T _1_x;
-        foreach (__T _assign_such_that_0 in (_0_left).Elements) {
-          _1_x = (__T)_assign_such_that_0;
-          if ((_0_left).Contains(_1_x)) {
-            goto after__ASSIGN_SUCH_THAT_0;
-          }
-        }
-        throw new System.Exception("assign-such-that search produced no value");
-      after__ASSIGN_SUCH_THAT_0: ;
-        _0_left = Dafny.Set<__T>.Difference(_0_left, Dafny.Set<__T>.FromElements(_1_x));
-        xs = Dafny.Sequence<__T>.Concat(xs, Dafny.Sequence<__T>.FromElements(_1_x));
-      }
-      return xs;
-    }
-    public static Dafny.ISequence<__T> SetToSortedSeq<__T>(Dafny.ISet<__T> s, Func<__T, __T, bool> R)
-    {
-      Dafny.ISequence<__T> xs = Dafny.Sequence<__T>.Empty;
-      Dafny.ISequence<__T> _out0;
-      _out0 = Std.Collections.Seq.__default.SetToSeq<__T>(s);
-      xs = _out0;
-      xs = Std.Collections.Seq.__default.MergeSortBy<__T>(R, xs);
-      return xs;
-    }
     public static Dafny.ISequence<__T> MergeSortBy<__T>(Func<__T, __T, bool> lessThanOrEq, Dafny.ISequence<__T> a)
     {
       if ((new BigInteger((a).Count)) <= (BigInteger.One)) {
@@ -419,6 +393,35 @@ namespace Std.Collections.Seq {
         right = _in4;
         lessThanOrEq = _in5;
         goto TAIL_CALL_START;
+      }
+    }
+    public static bool All<__T>(Dafny.ISequence<__T> s, Func<__T, bool> p)
+    {
+      return Dafny.Helpers.Id<Func<Dafny.ISequence<__T>, Func<__T, bool>, bool>>((_0_s, _1_p) => Dafny.Helpers.Quantifier<BigInteger>(Dafny.Helpers.IntegerRange(BigInteger.Zero, new BigInteger((_0_s).Count)), true, (((_forall_var_0) => {
+        BigInteger _2_i = (BigInteger)_forall_var_0;
+        return !(((_2_i).Sign != -1) && ((_2_i) < (new BigInteger((_0_s).Count)))) || (Dafny.Helpers.Id<Func<__T, bool>>(_1_p)((_0_s).Select(_2_i)));
+      }))))(s, p);
+    }
+    public static bool AllNot<__T>(Dafny.ISequence<__T> s, Func<__T, bool> p)
+    {
+      return Dafny.Helpers.Id<Func<Dafny.ISequence<__T>, Func<__T, bool>, bool>>((_0_s, _1_p) => Dafny.Helpers.Quantifier<BigInteger>(Dafny.Helpers.IntegerRange(BigInteger.Zero, new BigInteger((_0_s).Count)), true, (((_forall_var_0) => {
+        BigInteger _2_i = (BigInteger)_forall_var_0;
+        return !(((_2_i).Sign != -1) && ((_2_i) < (new BigInteger((_0_s).Count)))) || (!(Dafny.Helpers.Id<Func<__T, bool>>(_1_p)((_0_s).Select(_2_i))));
+      }))))(s, p);
+    }
+    public static bool Partitioned<__T>(Dafny.ISequence<__T> s, Func<__T, bool> p)
+    {
+    TAIL_CALL_START: ;
+      if ((s).Equals(Dafny.Sequence<__T>.FromElements())) {
+        return true;
+      } else if (Dafny.Helpers.Id<Func<__T, bool>>(p)((s).Select(BigInteger.Zero))) {
+        Dafny.ISequence<__T> _in0 = (s).Drop(BigInteger.One);
+        Func<__T, bool> _in1 = p;
+        s = _in0;
+        p = _in1;
+        goto TAIL_CALL_START;
+      } else {
+        return Std.Collections.Seq.__default.AllNot<__T>((s).Drop(BigInteger.One), p);
       }
     }
   }

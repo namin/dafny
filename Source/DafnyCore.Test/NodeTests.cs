@@ -5,14 +5,11 @@ namespace DafnyCore.Test;
 
 public class NodeTests {
 
-  class ConcreteNode : Node {
-    public ConcreteNode(IOrigin rangeOrigin, IEnumerable<INode>? children = null) {
-      Origin = rangeOrigin;
-      Children = children ?? Enumerable.Empty<INode>();
+  class ConcreteNode : NodeWithOrigin {
+    public ConcreteNode(IOrigin origin, IEnumerable<INode>? children = null) : base(origin) {
+      Children = children ?? [];
     }
 
-    public override IOrigin Origin { get; set; }
-    public override IOrigin Tok => Origin.StartToken;
     public override IEnumerable<INode> Children { get; }
     public override IEnumerable<INode> PreResolveChildren => Children;
   }

@@ -6,9 +6,10 @@ public class ThisExpr : Expression, ICloneable<ThisExpr> {
   public ThisExpr(Cloner cloner, ThisExpr original) : base(cloner, original) {
   }
 
-  public ThisExpr(IOrigin tok)
-    : base(tok) {
-    Contract.Requires(tok != null);
+  [SyntaxConstructor]
+  public ThisExpr(IOrigin origin)
+    : base(origin) {
+    Contract.Requires(origin != null);
   }
 
   /// <summary>
@@ -17,12 +18,12 @@ public class ThisExpr : Expression, ICloneable<ThisExpr> {
   /// to obtain a Dafny "this" expression.
   /// </summary>
   public ThisExpr(MemberDecl m)
-    : base(m.Tok) {
+    : base(m.Origin) {
     Contract.Requires(m != null);
-    Contract.Requires(m.Tok != null);
+    Contract.Requires(m.Origin != null);
     Contract.Requires(m.EnclosingClass != null);
     Contract.Requires(!m.IsStatic);
-    Type = ModuleResolver.GetReceiverType(m.Tok, m);
+    Type = ModuleResolver.GetReceiverType(m.Origin, m);
   }
 
   /// <summary>
@@ -31,10 +32,10 @@ public class ThisExpr : Expression, ICloneable<ThisExpr> {
   /// to obtain a Dafny "this" expression.
   /// </summary>
   public ThisExpr(TopLevelDeclWithMembers cl)
-    : base(cl.Tok) {
+    : base(cl.Origin) {
     Contract.Requires(cl != null);
-    Contract.Requires(cl.Tok != null);
-    Type = ModuleResolver.GetThisType(cl.Tok, cl);
+    Contract.Requires(cl.Origin != null);
+    Type = ModuleResolver.GetThisType(cl.Origin, cl);
   }
 
   public ThisExpr Clone(Cloner cloner) {
@@ -66,16 +67,16 @@ public class ImplicitThisExpr : ThisExpr, ICloneable<ImplicitThisExpr> {
 /// gives a way to distinguish this receiver from other receivers, which
 /// plays a role in checking the restrictions on divided block statements.
 /// </summary>
-public class ImplicitThisExpr_ConstructorCall : ImplicitThisExpr, ICloneable<ImplicitThisExpr_ConstructorCall> {
-  public ImplicitThisExpr_ConstructorCall(Cloner cloner, ImplicitThisExpr_ConstructorCall original) : base(cloner, original) {
+public class ImplicitThisExprConstructorCall : ImplicitThisExpr, ICloneable<ImplicitThisExprConstructorCall> {
+  public ImplicitThisExprConstructorCall(Cloner cloner, ImplicitThisExprConstructorCall original) : base(cloner, original) {
   }
 
-  public ImplicitThisExpr_ConstructorCall(IOrigin tok)
+  public ImplicitThisExprConstructorCall(IOrigin tok)
     : base(tok) {
     Contract.Requires(tok != null);
   }
 
-  public new ImplicitThisExpr_ConstructorCall Clone(Cloner cloner) {
-    return new ImplicitThisExpr_ConstructorCall(cloner, this);
+  public new ImplicitThisExprConstructorCall Clone(Cloner cloner) {
+    return new ImplicitThisExprConstructorCall(cloner, this);
   }
 }

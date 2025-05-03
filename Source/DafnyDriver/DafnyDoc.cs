@@ -112,7 +112,7 @@ class DafnyDoc {
   public ErrorReporter Reporter;
   public DafnyOptions Options;
   public string Outputdir;
-  List<Info> AllInfo = new List<Info>();
+  List<Info> AllInfo = [];
   public StringBuilder sidebar = new StringBuilder();
   public StringBuilder script = new StringBuilder().Append(ScriptStart());
 
@@ -205,8 +205,8 @@ class DafnyDoc {
     }
     var defaultClass = moduleDef.TopLevelDecls.First(d => d is DefaultClassDecl cd) as DefaultClassDecl;
 
-    var info = new Info(register, this, "module", module == null ? null : module.Tok, moduleDef.IsDefaultModule ? "_" : moduleDef.Name, fullName);
-    info.Contents = new List<Info>();
+    var info = new Info(register, this, "module", module == null ? null : module.Origin, moduleDef.IsDefaultModule ? "_" : moduleDef.Name, fullName);
+    info.Contents = [];
 
     if (moduleDef.IsDefaultModule) {
       if (dafnyFiles == null) {
@@ -217,7 +217,7 @@ class DafnyDoc {
         info.Source = FileInfo(dafnyFiles[0].CanonicalPath);
       }
     } else if (module != null) {
-      info.Source = FileInfo(module.Tok);
+      info.Source = FileInfo(module.Origin);
     }
 
     var docstring = Docstring(module);
@@ -317,7 +317,7 @@ class DafnyDoc {
   public Info ExportInfo(ModuleExportDecl ex, bool register) {
     var name = ex.Name;
     var docstring = Docstring(ex);
-    var info = new Info(register, this, "export", ex.Tok, name, ex.FullDafnyName, ExportId(ex.FullDafnyName));
+    var info = new Info(register, this, "export", ex.Origin, name, ex.FullDafnyName, ExportId(ex.FullDafnyName));
 
     info.HtmlSummary = Row($"{Keyword("export")} {Code(ex.EnclosingModuleDefinition.Name)}`{Link(info.Id, Code(Bold(ex.Name)))}",
      DashShortDocstring(ex));
@@ -387,7 +387,7 @@ class DafnyDoc {
   public Info ImportInfo(ModuleDecl md, bool register) {
     var name = md.Name;
     var docstring = Docstring(md);
-    var info = new Info(register, this, "import", md.Tok, name, md.FullDafnyName, md.FullDafnyName + "__import");
+    var info = new Info(register, this, "import", md.Origin, name, md.FullDafnyName, md.FullDafnyName + "__import");
 
     var styledName = Code(Bold(name));
     var details = new StringBuilder();
@@ -491,7 +491,7 @@ class DafnyDoc {
   }
 
   public Info ConstantInfo(bool register, ConstantField c) {
-    var info = new Info(register, this, "const", c.Tok, c.Name, c.FullDafnyName);
+    var info = new Info(register, this, "const", c.Origin, c.Name, c.FullDafnyName);
 
     var docstring = Docstring(c);
     var modifiers = c.ModifiersAsString();
@@ -511,7 +511,7 @@ class DafnyDoc {
   }
 
   public Info VarInfo(bool register, Field f) {
-    var info = new Info(register, this, "var", f.Tok, f.Name, f.FullDafnyName);
+    var info = new Info(register, this, "var", f.Origin, f.Name, f.FullDafnyName);
 
     var docstring = Docstring(f);
     var linkedName = Code(Link(f.FullDafnyName, Bold(f.Name)));
@@ -540,7 +540,7 @@ class DafnyDoc {
       }
     }
 
-    var info = new Info(register, this, m.WhatKind, m.Tok, name, m.FullDafnyName);
+    var info = new Info(register, this, m.WhatKind, m.Origin, name, m.FullDafnyName);
 
     var md = m as IHasDocstring;
     var docstring = Docstring(md);
@@ -565,7 +565,7 @@ class DafnyDoc {
         if (f.IsOpaque) {
           details.Append(br).Append(space4).Append("Function body is opaque").Append(br).Append(eol);
         }
-        var brackets = new SourceOrigin(body.StartToken.Prev, body.EndToken.Next);
+        var brackets = new TokenRange(body.StartToken.Prev!, body.EndToken.Next);
         int column = brackets.StartToken.line != brackets.EndToken.line ? brackets.EndToken.col : 0;
         var offset = column <= 1 ? "" : new StringBuilder().Insert(0, " ", column - 1).ToString();
         details.Append(Pre(offset + brackets.PrintOriginal()));
@@ -579,7 +579,7 @@ class DafnyDoc {
   }
 
   public string ExpressionAsSource(Expression e) {
-    return e.Origin.PrintOriginal();
+    return e.EntireRange.PrintOriginal();
   }
 
   public Info TypeInfo(bool register, TopLevelDecl t, ModuleDefinition module, Info owner) {
@@ -591,7 +591,7 @@ class DafnyDoc {
     var typeparams = TypeFormals(t.TypeArgs);
     string kind = t.WhatKind.Replace("abstract ", "").Replace("opaque ", "").Replace("subset ", "").Replace(" synonym", "");
 
-    var info = new Info(register, this, t.WhatKind, t.Tok, t.Name, t.FullDafnyName);
+    var info = new Info(register, this, t.WhatKind, t.Origin, t.Name, t.FullDafnyName);
 
     var details = new StringBuilder();
 
@@ -610,8 +610,8 @@ class DafnyDoc {
     decl.Append(typeparams);
 
     if (t is ClassLikeDecl cd) { // Class, Trait, Iterator
-      if (cd.ParentTraits.Count > 0) {
-        var extends = String.Join(", ", cd.ParentTraits.Select(t => TypeLink(t)));
+      if (cd.Traits.Count > 0) {
+        var extends = String.Join(", ", cd.Traits.Select(t => TypeLink(t)));
         if (!String.IsNullOrEmpty(extends)) {
           decl.Append(" ").Append("extends").Append(" ").Append(extends);
         }
@@ -642,7 +642,7 @@ class DafnyDoc {
       decl.Append(" = ");
       // datatype constructors are written out several lines down
     } else {
-      Reporter.Warning(MessageSource.Documentation, ParseErrors.ErrorId.none, t.Tok, "Kind of type not handled in dafny doc");
+      Reporter.Warning(MessageSource.Documentation, ParseErrors.ErrorId.none, t.Origin, "Kind of type not handled in dafny doc");
     }
     decl.Append(br).Append(eol);
     details.Append(AttrString(t.Attributes));
@@ -672,7 +672,7 @@ class DafnyDoc {
     }
 
     if (t is TopLevelDeclWithMembers tm) {
-      info.Contents = tm.Members.Count == 0 ? null : new List<Info>();
+      info.Contents = tm.Members.Count == 0 ? null : [];
 
       if (tm is ClassDecl) {
         AddConstructorSummaries(tm, details, info.Contents, register);
@@ -727,13 +727,13 @@ class DafnyDoc {
   }
 
   public void AddMethodSummaries(TopLevelDeclWithMembers decl, StringBuilder summaries, List<Info> ownerInfoList, bool register) {
-    var methods = decl.Members.Where(m => m is Method && !(m as Method).IsLemmaLike && !(m is Constructor) && !IsGeneratedName(m.Name)).Select(m => m as MemberDecl).ToList();
+    var methods = decl.Members.Where(m => m is Method method && !method.IsLemmaLike && !IsGeneratedName(method.Name)).ToList();
     methods.Sort((f, ff) => f.Name.CompareTo(ff.Name));
     AddExecutableSummaries("Methods", methods, decl, summaries, ownerInfoList, register);
   }
 
   public void AddLemmaSummaries(TopLevelDeclWithMembers decl, StringBuilder summaries, List<Info> ownerInfoList, bool register) {
-    var methods = decl.Members.Where(m => m is Method && (m as Method).IsLemmaLike && !IsGeneratedName(m.Name)).Select(m => m as MemberDecl).ToList();
+    var methods = decl.Members.Where(m => m is Method && (m as Method).IsLemmaLike && !IsGeneratedName(m.Name)).ToList();
     methods.Sort((f, ff) => f.Name.CompareTo(ff.Name));
     AddExecutableSummaries("Lemmas", methods, decl, summaries, ownerInfoList, register);
   }
@@ -745,13 +745,12 @@ class DafnyDoc {
   }
 
   string MethodSig(MemberDecl m) {
-    if (m is Method) {
-      var mth = m as Method;
-      var typeparams = TypeFormals(mth.TypeArgs);
-      var formals = String.Join(", ", mth.Ins.Select(f => (FormalAsString(f, false))));
-      var outformals = mth.Outs.Count == 0 ? "" :
-        " " + Keyword("returns") + " (" + String.Join(", ", mth.Outs.Select(f => (FormalAsString(f, false)))) + ")";
-      return (Bold(m.Name) + typeparams) + "(" + formals + ")" + outformals;
+    if (m is MethodOrConstructor methodOrConstructor) {
+      var typeparams = TypeFormals(methodOrConstructor.TypeArgs);
+      var formals = String.Join(", ", methodOrConstructor.Ins.Select(f => (FormalAsString(f, false))));
+      var outformals = methodOrConstructor.Outs.Count == 0 ? "" :
+        " " + Keyword("returns") + " (" + String.Join(", ", methodOrConstructor.Outs.Select(f => (FormalAsString(f, false)))) + ")";
+      return (Bold(methodOrConstructor.Name) + typeparams) + "(" + formals + ")" + outformals;
     } else if (m is Function) {
       var f = m as Function;
       var typeparams = TypeFormals(f.TypeArgs);
@@ -822,28 +821,27 @@ class DafnyDoc {
   // returns true iff some specs were appended to the StringBuilder
   public bool AppendSpecs(StringBuilder details, MemberDecl d) {
     bool some = false;
-    if (d is Method) {
-      var m = d as Method;
-      foreach (var req in m.Req) {
+    if (d is MethodOrConstructor method) {
+      foreach (var req in method.Req) {
         details.Append(space4).Append(Keyword("requires")).Append(" ").Append(Code(req.E.ToString())).Append(br).Append(eol);
         some = true;
       }
-      if (m.Reads.Expressions.Count > 0) {
-        var list = String.Join(", ", m.Reads.Expressions.Select(e => Code(e.OriginalExpression.ToString() + (e.FieldName != null ? "`" + e.FieldName : ""))));
+      if (method.Reads.Expressions.Count > 0) {
+        var list = String.Join(", ", method.Reads.Expressions.Select(e => Code(e.OriginalExpression.ToString() + (e.FieldName != null ? "`" + e.FieldName : ""))));
         details.Append(space4).Append(Keyword("reads")).Append(" ").Append(list).Append(br).Append(eol);
         some = true;
       }
-      if (m.Mod != null && m.Mod.Expressions.Count > 0) {
-        var list = String.Join(", ", m.Mod.Expressions.Select(e => Code(e.OriginalExpression.ToString() + (e.FieldName != null ? "`" + e.FieldName : ""))));
+      if (method.Mod != null && method.Mod.Expressions.Count > 0) {
+        var list = String.Join(", ", method.Mod.Expressions.Select(e => Code(e.OriginalExpression.ToString() + (e.FieldName != null ? "`" + e.FieldName : ""))));
         details.Append(space4).Append(Keyword("modifies")).Append(" ").Append(list).Append(br).Append(eol);
         some = true;
       }
-      foreach (var en in m.Ens) {
+      foreach (var en in method.Ens) {
         details.Append(space4).Append(Keyword("ensures")).Append(" ").Append(Code(en.E.ToString())).Append(br).Append(eol);
         some = true;
       }
-      if (m.Decreases != null && m.Decreases.Expressions.Count > 0) {
-        var dec = String.Join(", ", m.Decreases.Expressions.Select(e => Code(e.ToString())));
+      if (method.Decreases != null && method.Decreases.Expressions.Count > 0) {
+        var dec = String.Join(", ", method.Decreases.Expressions.Select(e => Code(e.ToString())));
         details.Append(space4).Append(Keyword("decreases")).Append(" ").Append(dec).Append(br).Append(eol);
         some = true;
       }
@@ -947,7 +945,7 @@ class DafnyDoc {
         return Code(s);
       }
     }
-    Reporter.Warning(MessageSource.Documentation, ParseErrors.ErrorId.none, t.Tok, "Implementation missing for type " + t.GetType() + " " + t.ToString());
+    Reporter.Warning(MessageSource.Documentation, ParseErrors.ErrorId.none, t.Origin, "Implementation missing for type " + t.GetType() + " " + t.ToString());
     return Code(t.ToString());
   }
 

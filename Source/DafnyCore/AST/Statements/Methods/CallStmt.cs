@@ -8,12 +8,10 @@ namespace Microsoft.Dafny;
 /// A CallStmt is always resolved.  It is typically produced as a resolved counterpart of the syntactic AST note ApplySuffix.
 /// </summary>
 public class CallStmt : Statement, ICloneable<CallStmt> {
-  // OverrideToken is required because MethodSelect.EndToken can be incorrect. Will remove once resolved expressions have correct ranges.
-  public override IOrigin Tok => overrideToken ?? MethodSelect.EndToken.Next;
 
   [ContractInvariantMethod]
   void ObjectInvariant() {
-    Contract.Invariant(MethodSelect.Member is Method);
+    Contract.Invariant(MethodSelect.Member is MethodOrConstructor);
     Contract.Invariant(cce.NonNullElements(Lhs));
     Contract.Invariant(cce.NonNullElements(Args));
   }
@@ -23,27 +21,27 @@ public class CallStmt : Statement, ICloneable<CallStmt> {
     return Lhs.Select(lhs => lhs.Resolved).OfType<IdentifierExpr>();
   }
 
-  public readonly List<Expression> Lhs;
-  public readonly MemberSelectExpr MethodSelect;
-  private readonly IOrigin overrideToken;
-  public readonly ActualBindings Bindings;
+  public List<Expression> Lhs;
+  public MemberSelectExpr MethodSelect;
+  public ActualBindings Bindings;
   public List<Expression> Args => Bindings.Arguments;
   public Expression OriginalInitialLhs = null;
 
   public Expression Receiver => MethodSelect.Obj;
-  public Method Method => (Method)MethodSelect.Member;
+  public MethodOrConstructor Method => (MethodOrConstructor)MethodSelect.Member;
 
-  public CallStmt(IOrigin rangeOrigin, List<Expression> lhs, MemberSelectExpr memSel, List<ActualBinding> args, IOrigin overrideToken = null)
-    : base(rangeOrigin) {
+  public CallStmt(IOrigin rangeOrigin, List<Expression> lhs, MemberSelectExpr memSel, List<ActualBinding> args,
+      TokenRange overrideToken = null)
+    : base(overrideToken == null ? rangeOrigin : new OverrideCenter(rangeOrigin, overrideToken)) {
     Contract.Requires(rangeOrigin != null);
     Contract.Requires(cce.NonNullElements(lhs));
     Contract.Requires(memSel != null);
-    Contract.Requires(memSel.Member is Method);
+    Contract.Requires(memSel.Member is MethodOrConstructor);
     Contract.Requires(cce.NonNullElements(args));
 
     this.Lhs = lhs;
     this.MethodSelect = memSel;
-    this.overrideToken = overrideToken;
+
     this.Bindings = new ActualBindings(args);
   }
 
@@ -55,15 +53,14 @@ public class CallStmt : Statement, ICloneable<CallStmt> {
     MethodSelect = (MemberSelectExpr)cloner.CloneExpr(original.MethodSelect);
     Lhs = original.Lhs.Select(cloner.CloneExpr).ToList();
     Bindings = new ActualBindings(cloner, original.Bindings);
-    overrideToken = original.overrideToken;
   }
 
   /// <summary>
   /// This constructor is intended to be used when constructing a resolved CallStmt. The "args" are expected
   /// to be already resolved, and are all given positionally.
   /// </summary>
-  public CallStmt(IOrigin rangeOrigin, List<Expression> lhs, MemberSelectExpr memSel, List<Expression> args)
-    : this(rangeOrigin, lhs, memSel, args.ConvertAll(e => new ActualBinding(null, e))) {
+  public CallStmt(IOrigin rangeOrigin, List<Expression> lhs, MemberSelectExpr memSel, List<Expression> args, TokenRange overrideToken = null)
+    : this(rangeOrigin, lhs, memSel, args.ConvertAll(e => new ActualBinding(null, e)), overrideToken) {
     Bindings.AcceptArgumentExpressionsAsExactParameterList();
   }
 

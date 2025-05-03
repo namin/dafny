@@ -18,23 +18,23 @@ public class Snippets {
     OptionRegistry.RegisterOption(ShowSnippets, OptionScope.Cli);
   }
 
-  public static void WriteSourceCodeSnippet(DafnyOptions options, IOrigin tok, TextWriter tw) {
-    string line = GetFileLine(options, tok.Uri, tok.line - 1);
+  public static void WriteSourceCodeSnippet(DafnyOptions options, TokenRange range, TextWriter tw) {
+    var start = range.StartToken;
+    var end = range.EndToken;
+    string line = GetFileLine(options, range.Uri, start.line - 1);
     if (line == null) {
       return;
     }
 
-    string lineNumber = tok.line.ToString();
+    string lineNumber = start.line.ToString();
     string lineNumberSpaces = new string(' ', lineNumber.Length);
-    string columnSpaces = new string(' ', tok.col - 1);
-    var lineStartPos = tok.pos - tok.col + 1;
+    string columnSpaces = new string(' ', start.col - 1);
+    var lineStartPos = start.pos - start.col + 1;
     var lineEndPos = lineStartPos + line.Length;
 
-    var tokEndPos = tok.pos + tok.val.Length;
-    if (tok.IncludesRange) {
-      tokEndPos = tok.EndToken.pos + tok.EndToken.val.Length;
-    }
-    var underlineLength = Math.Max(1, Math.Min(tokEndPos - tok.pos, lineEndPos - tok.pos));
+    var tokEndPos = end.pos + end.val.Length;
+
+    var underlineLength = Math.Max(1, Math.Min(tokEndPos - start.pos, lineEndPos - start.pos));
     string underline = new string('^', underlineLength);
     tw.WriteLine($"{lineNumberSpaces} |");
     tw.WriteLine($"{lineNumber} | {line}");
@@ -52,7 +52,7 @@ public class Snippets {
         using var reader = file.GetContent().Reader;
         lines = Util.Lines(reader).ToList();
       } catch (Exception) {
-        lines = new List<string>();
+        lines = [];
       }
       return lines;
     });

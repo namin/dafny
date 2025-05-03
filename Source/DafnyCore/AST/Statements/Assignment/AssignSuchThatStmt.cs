@@ -9,22 +9,11 @@ namespace Microsoft.Dafny;
 /// Parsed from ":|"
 /// </summary>
 public class AssignSuchThatStmt : ConcreteAssignStatement, ICloneable<AssignSuchThatStmt>, ICanResolveNewAndOld {
-  public readonly Expression Expr;
-  public readonly AttributedToken AssumeToken;
+  public Expression Expr;
+  public AttributedToken AssumeToken;
 
   public override IEnumerable<INode> PreResolveChildren =>
     Lhss.Concat<Node>(new List<Node>() { Expr });
-
-  public override IOrigin Tok {
-    get {
-      var result = Expr.StartToken.Prev;
-      if (char.IsLetter(result.val[0])) {
-        // Jump to operator if we're on an assume keyword.
-        result = result.Prev;
-      }
-      return result;
-    }
-  }
 
   [FilledInDuringResolution] public List<BoundedPool> Bounds;  // null for a ghost statement
   // invariant Bounds == null || Bounds.Count == BoundVars.Count;
@@ -36,6 +25,10 @@ public class AssignSuchThatStmt : ConcreteAssignStatement, ICloneable<AssignSuch
     public override BoundedPool Clone(Cloner cloner) {
       return this;
     }
+  }
+
+  public override IEnumerable<IdentifierExpr> GetAssignedLocals() {
+    return Lhss.Select(lhs => lhs.Resolved).OfType<IdentifierExpr>();
   }
 
   public override IEnumerable<INode> Children => Lhss.Concat<Node>(new[] { Expr });
@@ -58,9 +51,9 @@ public class AssignSuchThatStmt : ConcreteAssignStatement, ICloneable<AssignSuch
   /// "assumeToken" is allowed to be "null", in which case the verifier will check that a RHS value exists.
   /// If "assumeToken" is non-null, then it should denote the "assume" keyword used in the statement.
   /// </summary>
-  public AssignSuchThatStmt(IOrigin rangeOrigin, List<Expression> lhss, Expression expr, AttributedToken assumeToken, Attributes attrs)
-    : base(rangeOrigin, lhss, attrs) {
-    Contract.Requires(rangeOrigin != null);
+  public AssignSuchThatStmt(IOrigin origin, List<Expression> lhss, Expression expr, AttributedToken assumeToken, Attributes attributes)
+    : base(origin, lhss, attributes) {
+    Contract.Requires(origin != null);
     Contract.Requires(cce.NonNullElements(lhss));
     Contract.Requires(lhss.Count != 0);
     Contract.Requires(expr != null);
@@ -82,7 +75,7 @@ public class AssignSuchThatStmt : ConcreteAssignStatement, ICloneable<AssignSuch
 
     if (!resolutionContext.IsGhost && resolver.Options.ForbidNondeterminism) {
       resolver.Reporter.Error(MessageSource.Resolver, GeneratorErrors.ErrorId.c_assign_such_that_forbidden,
-        Tok, "assign-such-that statement forbidden by the --enforce-determinism option");
+        Origin, "assign-such-that statement forbidden by the --enforce-determinism option");
     }
     base.GenResolve(resolver, resolutionContext);
 

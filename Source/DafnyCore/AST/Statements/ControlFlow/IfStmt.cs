@@ -1,13 +1,14 @@
+#nullable enable
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 
 namespace Microsoft.Dafny;
 
-public class IfStmt : Statement, ICloneable<IfStmt>, ICanFormat {
-  public readonly bool IsBindingGuard;
-  public readonly Expression Guard;
-  public readonly BlockStmt Thn;
-  public readonly Statement Els;
+public class IfStmt : LabeledStatement, ICloneable<IfStmt>, ICanFormat {
+  public bool IsBindingGuard;
+  public Expression? Guard;
+  public BlockStmt Thn;
+  public Statement? Els;
   [ContractInvariantMethod]
   void ObjectInvariant() {
     Contract.Invariant(!IsBindingGuard || (Guard is ExistsExpr && ((ExistsExpr)Guard).Range == null));
@@ -15,7 +16,7 @@ public class IfStmt : Statement, ICloneable<IfStmt>, ICanFormat {
     Contract.Invariant(Els == null || Els is BlockStmt || Els is IfStmt || Els is SkeletonStatement);
   }
 
-  public IfStmt Clone(Cloner cloner) {
+  public new IfStmt Clone(Cloner cloner) {
     return new IfStmt(cloner, this);
   }
 
@@ -26,22 +27,23 @@ public class IfStmt : Statement, ICloneable<IfStmt>, ICanFormat {
     Els = cloner.CloneStmt(original.Els, false);
   }
 
-  public IfStmt(IOrigin rangeOrigin, bool isBindingGuard, Expression guard, BlockStmt thn, Statement els)
-    : base(rangeOrigin) {
-    Contract.Requires(rangeOrigin != null);
+  public IfStmt(IOrigin origin, bool isBindingGuard, Expression? guard, BlockStmt thn, Statement? els)
+    : base(origin, []) {
+    Contract.Requires(origin != null);
     Contract.Requires(!isBindingGuard || (guard is ExistsExpr && ((ExistsExpr)guard).Range == null));
-    Contract.Requires(thn != null);
     Contract.Requires(els == null || els is BlockStmt || els is IfStmt || els is SkeletonStatement);
     IsBindingGuard = isBindingGuard;
     Guard = guard;
     Thn = thn;
     Els = els;
   }
-  public IfStmt(IOrigin rangeOrigin, bool isBindingGuard, Expression guard, BlockStmt thn, Statement els, Attributes attrs)
-    : base(rangeOrigin, attrs) {
-    Contract.Requires(rangeOrigin != null);
+
+  [SyntaxConstructor]
+  public IfStmt(IOrigin origin, bool isBindingGuard, Expression? guard, BlockStmt thn, Statement? els,
+    List<Label> labels, Attributes? attributes)
+    : base(origin, labels, attributes) {
+    Contract.Requires(origin != null);
     Contract.Requires(!isBindingGuard || (guard is ExistsExpr && ((ExistsExpr)guard).Range == null));
-    Contract.Requires(thn != null);
     Contract.Requires(els == null || els is BlockStmt || els is IfStmt || els is SkeletonStatement);
     IsBindingGuard = isBindingGuard;
     Guard = guard;
@@ -90,21 +92,21 @@ public class IfStmt : Statement, ICloneable<IfStmt>, ICanFormat {
   public void Resolve(INewOrOldResolver resolver, ResolutionContext resolutionContext) {
     if (Guard != null) {
       if (!resolutionContext.IsGhost && IsBindingGuard && resolver.Options.ForbidNondeterminism) {
-        resolver.Reporter.Error(MessageSource.Resolver, GeneratorErrors.ErrorId.c_binding_if_forbidden, Tok, "binding if statement forbidden by the --enforce-determinism option");
+        resolver.Reporter.Error(MessageSource.Resolver, GeneratorErrors.ErrorId.c_binding_if_forbidden, Origin, "binding if statement forbidden by the --enforce-determinism option");
       }
       resolver.ResolveExpression(Guard, resolutionContext);
       resolver.ConstrainTypeExprBool(Guard, "condition is expected to be of type bool, but is {0}");
     } else {
       if (!resolutionContext.IsGhost && resolver.Options.ForbidNondeterminism) {
-        resolver.Reporter.Error(MessageSource.Resolver, GeneratorErrors.ErrorId.c_nondeterministic_if_forbidden, Tok, "nondeterministic if statement forbidden by the --enforce-determinism option");
+        resolver.Reporter.Error(MessageSource.Resolver, GeneratorErrors.ErrorId.c_nondeterministic_if_forbidden, Origin, "nondeterministic if statement forbidden by the --enforce-determinism option");
       }
     }
 
     resolver.Scope.PushMarker();
     if (IsBindingGuard) {
-      var exists = (ExistsExpr)Guard;
+      var exists = (ExistsExpr)Guard!;
       foreach (var v in exists.BoundVars) {
-        resolver.ScopePushAndReport(resolver.Scope, v.Name, v, v.Tok, "bound-variable");
+        resolver.ScopePushAndReport(resolver.Scope, v.Name, v, v.Origin, "bound-variable");
       }
     }
     resolver.DominatingStatementLabels.PushMarker();
@@ -120,11 +122,11 @@ public class IfStmt : Statement, ICloneable<IfStmt>, ICanFormat {
   }
 
   public override void ResolveGhostness(ModuleResolver resolver, ErrorReporter reporter, bool mustBeErasable,
-    ICodeContext codeContext, string proofContext,
+    ICodeContext codeContext, string? proofContext,
     bool allowAssumptionVariables, bool inConstructorInitializationPhase) {
     IsGhost = mustBeErasable || (Guard != null && ExpressionTester.UsesSpecFeatures(Guard));
     if (!mustBeErasable && IsGhost) {
-      reporter.Info(MessageSource.Resolver, Tok, "ghost if");
+      reporter.Info(MessageSource.Resolver, Origin, "ghost if");
     }
     Thn.ResolveGhostness(resolver, reporter, IsGhost, codeContext, proofContext, allowAssumptionVariables, inConstructorInitializationPhase);
     if (Els != null) {

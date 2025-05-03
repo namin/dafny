@@ -28,8 +28,8 @@ public class IndentationFormatter : IIndentationFormatter {
       ReduceBlockiness = reduceBlockiness
     };
     foreach (var child in program.DefaultModuleDef.PreResolveChildren) {
-      var isPhysicalToken = child.Tok.line != 0;
-      if (isPhysicalToken && child.Tok.Uri != fileToFormat) {
+      var isPhysicalToken = child.Origin.line != 0;
+      if (isPhysicalToken && child.Origin.Uri != fileToFormat) {
         continue;
       }
       if (child is TopLevelDecl topLevelDecl) {
@@ -229,7 +229,7 @@ public class IndentationFormatter : IIndentationFormatter {
     });
   }
 
-  private string ReIndentMultilineComment(IOrigin token, string capturedComment, int currentIndent,
+  private string ReIndentMultilineComment(Token token, string capturedComment, int currentIndent,
     string indentationBefore, bool precededByNewline, out bool previousMatchWasSingleLineCommentToAlign) {
     var doubleStar = capturedComment.StartsWith("/**") && !capturedComment.StartsWith("/***");
 

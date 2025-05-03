@@ -93,7 +93,7 @@ namespace Microsoft.Dafny {
       // Example pseudo-code to collect all statements up to the specified line number
       var statements = new List<Statement>();
       foreach (var stmt in body.Body) {
-        if (stmt.Tok.line >= lineNumber) { 
+        if (stmt.StartToken.line >= lineNumber) { 
           break;
         }
         statements.Add(stmt);
@@ -106,7 +106,7 @@ namespace Microsoft.Dafny {
     /// </summary>
     private Statement GetStatementAfterLine(BlockStmt body, int? lineNumber) {
       foreach (var stmt in body.Body) {
-        if (stmt.Tok.line > lineNumber) {
+        if (stmt.StartToken.line > lineNumber) {
           return stmt;
         }
       }

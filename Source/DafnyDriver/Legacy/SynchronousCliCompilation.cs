@@ -95,6 +95,14 @@ namespace Microsoft.Dafny {
       var otherFiles = new List<string>();
       var outputWriter = options.OutputWriter;
 
+      var consoleErrorReporter = new ConsoleErrorReporter(options);
+      if (options.DafnyProject != null) {
+        options.DafnyProject.Errors.CopyDiagnostics(consoleErrorReporter);
+        if (options.DafnyProject.Errors.HasErrors) {
+          return (ExitValue.PREPROCESSING_ERROR, [], []);
+        }
+      }
+
       if (options.UseStdin) {
         var dafnyFile = DafnyFile.HandleStandardInput(options, Token.NoToken);
         dafnyFiles.Add(dafnyFile);
@@ -129,7 +137,6 @@ namespace Microsoft.Dafny {
         var supportedExtensions = options.Backend.SupportedExtensions;
         bool isDafnyFile = false;
         try {
-          var consoleErrorReporter = new ConsoleErrorReporter(options);
           await foreach (var df in DafnyFile.CreateAndValidate(
                            OnDiskFileSystem.Instance, consoleErrorReporter, options, new Uri(Path.GetFullPath(file)),
                            Token.Cli, options.LibraryFiles.Contains(file))) {
@@ -287,25 +294,34 @@ namespace Microsoft.Dafny {
       if (err != null) {
         exitValue = ExitValue.DAFNY_ERROR;
         options.Printer.ErrorWriteLine(options.OutputWriter, err);
-      } else if (dafnyProgram != null && !options.NoResolve && !options.NoTypecheck
-          && options.DafnyVerify) {
+      } else if (dafnyProgram != null && !options.NoResolve && !options.NoTypecheck) {
 
+        bool verified;
+        PipelineOutcome outcome;
+        IDictionary<string, PipelineStatistics> moduleStats;
         dafnyProgram.ProofDependencyManager = depManager;
-        var boogiePrograms =
-          await DafnyMain.LargeStackFactory.StartNew(() => Translate(engine.Options, dafnyProgram).ToList());
+        if (!options.DafnyVerify) {
+          verified = false;
+          outcome = PipelineOutcome.Done;
+          moduleStats = new Dictionary<string, PipelineStatistics>();
+        } else {
+          var boogiePrograms =
+            await DafnyMain.LargeStackFactory.StartNew(() => Translate(engine.Options, dafnyProgram).ToList());
 
-        string baseName = cce.NonNull(Path.GetFileName(dafnyFileNames[^1]));
-        var (verified, outcome, moduleStats) =
-          await BoogieAsync(dafnyProgram.Reporter, options, baseName, boogiePrograms, programId);
+          string baseName = cce.NonNull(Path.GetFileName(dafnyFileNames[^1]));
+          (verified, outcome, moduleStats) =
+            await BoogieAsync(dafnyProgram.Reporter, options, baseName, boogiePrograms, programId);
 
-        if (options.TrackVerificationCoverage) {
-          ProofDependencyWarnings.WarnAboutSuspiciousDependenciesUsingStoredPartialResults(options, dafnyProgram.Reporter, depManager);
-          var coverageReportDir = options.Get(CommonOptionBag.VerificationCoverageReport);
-          if (coverageReportDir != null) {
-            await new CoverageReporter(options).SerializeVerificationCoverageReport(
-              depManager, dafnyProgram,
-              boogiePrograms.SelectMany(tp => tp.Item2.AllCoveredElements),
-              coverageReportDir);
+          if (options.TrackVerificationCoverage) {
+            ProofDependencyWarnings.WarnAboutSuspiciousDependenciesUsingStoredPartialResults(options,
+              dafnyProgram.Reporter, depManager);
+            var coverageReportDir = options.Get(CommonOptionBag.VerificationCoverageReport);
+            if (coverageReportDir != null) {
+              await new CoverageReporter(options).SerializeVerificationCoverageReport(
+                depManager, dafnyProgram,
+                boogiePrograms.SelectMany(tp => tp.Item2.AllCoveredElements),
+                coverageReportDir);
+            }
           }
         }
 
@@ -324,12 +340,12 @@ namespace Microsoft.Dafny {
         } catch (UnsupportedInvalidOperationException e) {
           // Not having this catch makes all tests running for all compilers take 10-15x longer on Windows,
           // just because of the Dafny compiler.
-          dafnyProgram.Reporter.Error(MessageSource.Compiler, GeneratorErrors.ErrorId.f_unsupported_feature, Token.NoToken, e.Message);
+          dafnyProgram.Reporter.Error(MessageSource.Compiler, GeneratorErrors.ErrorId.f_unsupported_feature, e.Token, e.Message);
           compiled = false;
         }
 
         var failBecauseOfDiagnostics = dafnyProgram.Reporter.FailCompilationMessage;
-        if (!verified) {
+        if (!verified && options.DafnyVerify) {
           exitValue = ExitValue.VERIFICATION_ERROR;
         } else if (!compiled) {
           exitValue = ExitValue.COMPILE_ERROR;

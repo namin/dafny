@@ -21,12 +21,12 @@ namespace Microsoft.Dafny {
     public readonly PreTypeResolver PreTypeResolver;
     private readonly DafnyOptions options;
 
-    private List<SubtypeConstraint> unnormalizedSubtypeConstraints = new();
+    private List<SubtypeConstraint> unnormalizedSubtypeConstraints = [];
     private Queue<EqualityConstraint> equalityConstraints = new();
-    private List<Func<bool>> guardedConstraints = new();
-    private readonly List<Advice> defaultAdvice = new();
-    private readonly List<(PreTypeProxy, PreType)> compatibleBounds = new();
-    private List<Confirmation> confirmations = new();
+    private List<Func<bool>> guardedConstraints = [];
+    private readonly List<Advice> defaultAdvice = [];
+    private List<(PreTypeProxy, PreType)> compatibleBounds = [];
+    private List<Confirmation> confirmations = [];
 
     public PreTypeConstraints(PreTypeResolver preTypeResolver) {
       this.PreTypeResolver = preTypeResolver;
@@ -76,7 +76,7 @@ namespace Microsoft.Dafny {
     [CanBeNull]
     private DPreType ApproximateReceiverTypeViaBounds(PreTypeProxy proxy, [CanBeNull] string memberName, out HashSet<PreTypeProxy> subProxies) {
       // If there is a subtype constraint "proxy :> sub<X>", then (if the program is legal at all, then) "sub" must have the member "memberName".
-      subProxies = new HashSet<PreTypeProxy>();
+      subProxies = [];
       foreach (var sub in AllSubBounds(proxy, subProxies)) {
         return sub;
       }
@@ -168,6 +168,8 @@ namespace Microsoft.Dafny {
       } else if (TryApplyDefaultAdvice()) {
         return true;
       } else if (TryUseCompatibleTypesAsBounds()) {
+        return true;
+      } else if (TryEquateBounds()) {
         return true;
       }
       return false;
@@ -276,7 +278,7 @@ namespace Microsoft.Dafny {
         return false;
       }
       var constraints = unnormalizedSubtypeConstraints;
-      unnormalizedSubtypeConstraints = new();
+      unnormalizedSubtypeConstraints = [];
       var anythingChanged = false;
       foreach (var constraint in constraints) {
         if (constraint.Apply(this)) {
@@ -345,6 +347,27 @@ namespace Microsoft.Dafny {
         AddEqualityConstraint(proxy, pt, constraint.tok, constraint.ErrorFormatString, null, constraint.ReportErrors); // TODO: the message could be made more specific now (perhaps)
         anythingChanged = true;
       }
+      return anythingChanged;
+    }
+
+    /// <summary>
+    /// For any bound ?x :> ?y, equate ?x and ?y.
+    /// </summary>
+    bool TryEquateBounds() {
+      var anythingChanged = false;
+      var constraints = unnormalizedSubtypeConstraints;
+      unnormalizedSubtypeConstraints = new();
+      foreach (var constraint in constraints) {
+        if (constraint.Super.Normalize() is PreTypeProxy super && constraint.Sub.Normalize() is PreTypeProxy sub) {
+          if (super != sub) {
+            super.Set(sub);
+            anythingChanged = true;
+          }
+        } else {
+          unnormalizedSubtypeConstraints.Add(constraint);
+        }
+      }
+
       return anythingChanged;
     }
 
@@ -488,7 +511,7 @@ namespace Microsoft.Dafny {
         return false;
       }
       var constraints = guardedConstraints;
-      guardedConstraints = new();
+      guardedConstraints = [];
       var anythingChanged = false;
       foreach (var constraint in constraints) {
         if (constraint()) {
@@ -526,13 +549,24 @@ namespace Microsoft.Dafny {
     }
 
     bool TryUseCompatibleTypesAsBounds() {
+      if (compatibleBounds.Count == 0) {
+        // common special case
+        return false;
+      }
+      var bounds = compatibleBounds;
+      compatibleBounds = new();
+
       // if there is a compatible-types constraint "ty ~~ proxy", then decide on the bound "ty :> proxy"
       bool anythingChanged = false;
-      foreach (var (compatibleBoundsProxy, compatibleBoundsType) in compatibleBounds) {
-        if (compatibleBoundsProxy.Normalize() is PreTypeProxy proxy && compatibleBoundsType.Normalize() is DPreType dPreType) {
-          // make a decision to set this proxy
-          proxy.Set(dPreType);
-          anythingChanged = true;
+      foreach (var item in bounds) {
+        var (compatibleBoundsProxy, compatibleBoundsType) = item;
+        if (compatibleBoundsProxy.Normalize() is PreTypeProxy proxy) {
+          if (!compatibleBoundsType.Contains(proxy, 1, new HashSet<PreTypeProxy>(), this, 0)) {
+            proxy.Set(compatibleBoundsType);
+            anythingChanged = true;
+          }
+        } else {
+          compatibleBounds.Add(item);
         }
       }
       return anythingChanged;
@@ -826,7 +860,7 @@ namespace Microsoft.Dafny {
     /// AllParentTraits(decl) is like decl.ParentTraits, but also returns "object" if "decl" is a reference type.
     /// </summary>
     public IEnumerable<Type> AllParentTraits(TopLevelDeclWithMembers decl) {
-      foreach (var parentType in decl.ParentTraits) {
+      foreach (var parentType in decl.Traits) {
         yield return parentType;
       }
       if (DPreType.IsReferenceTypeDecl(decl)) {

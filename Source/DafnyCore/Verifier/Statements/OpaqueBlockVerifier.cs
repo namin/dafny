@@ -10,45 +10,44 @@ public static class OpaqueBlockVerifier {
   public static void EmitBoogie(BoogieGenerator generator, OpaqueBlock block, BoogieStmtListBuilder builder,
     Variables locals, BoogieGenerator.ExpressionTranslator etran, IMethodCodeContext codeContext) {
 
-    var hasModifiesClause = block.Modifies.Expressions.Any();
     var blockBuilder = new BoogieStmtListBuilder(generator, builder.Options, builder.Context);
 
-    var bodyTranslator = GetBodyTranslator(generator, block, locals, etran, hasModifiesClause, blockBuilder);
+    var bodyTranslator = GetBodyTranslator(generator, block, locals, etran, blockBuilder);
     var prevDefiniteAssignmentTrackers = generator.DefiniteAssignmentTrackers;
-    generator.TrStmtList(block.Body, blockBuilder, locals, bodyTranslator, block.Origin);
+    generator.TrStmtList(block.Body, blockBuilder, locals, bodyTranslator, block.EntireRange);
     generator.DefiniteAssignmentTrackers = prevDefiniteAssignmentTrackers;
 
     var assignedVariables = block.DescendantsAndSelf.
       SelectMany(s => s.GetAssignedLocals()).Select(ie => ie.Var)
       .ToHashSet();
-    List<AttributedExpression> totalEnsures = new();
+    List<AttributedExpression> totalEnsures = [];
 
     var variablesUsedInEnsures = block.Ensures.SelectMany(ae => ae.E.DescendantsAndSelf).
       OfType<DafnyIdentifierExpr>().DistinctBy(ie => ie.Var);
     var implicitAssignedIdentifiers =
       variablesUsedInEnsures.Where(v => assignedVariables.Contains(v.Var) && generator.DefiniteAssignmentTrackers.ContainsKey(v.Var.UniqueName));
     foreach (var v in implicitAssignedIdentifiers) {
-      var expression = new AttributedExpression(Expression.CreateAssigned(v.Tok, v));
+      var expression = new AttributedExpression(Expression.CreateAssigned(v.Origin, v));
       totalEnsures.Add(expression);
       blockBuilder.Add(generator.Assert(
-        v.Tok, etran.TrExpr(expression.E),
+        v.Origin, etran.TrExpr(expression.E),
         new DefiniteAssignment("variable", v.Var.Name, "here"), builder.Context));
     }
 
     foreach (var ensure in block.Ensures) {
       totalEnsures.Add(ensure);
       blockBuilder.Add(generator.Assert(
-        ensure.Tok, etran.TrExpr(ensure.E),
+        ensure.Origin, etran.TrExpr(ensure.E),
         new OpaqueEnsuresDescription(), builder.Context,
         etran.TrAttributes(ensure.Attributes, null)));
     }
 
-    if (hasModifiesClause) {
+    if (block.Modifies.Expressions.Any()) {
       var context = new OpaqueBlockContext(codeContext, block);
       if (context is IMethodCodeContext methodCodeContext) {
         generator.CheckFrameSubset(
-          block.Tok, block.Modifies.Expressions,
-          null, null, etran, etran.ModifiesFrame(block.Tok), blockBuilder, new ModifyFrameSubset(
+          block.Origin, block.Modifies.Expressions,
+          null, null, etran, etran.ModifiesFrame(block.Origin), blockBuilder, new ModifyFrameSubset(
             "opaque block",
             block.Modifies.Expressions,
             methodCodeContext.Modifies.Expressions
@@ -56,12 +55,10 @@ public static class OpaqueBlockVerifier {
       }
     }
 
-    generator.PathAsideBlock(block.Tok, blockBuilder, builder);
-    builder.Add(new HavocCmd(Token.NoToken, assignedVariables.Select(v => new BoogieIdentifierExpr(v.Tok, v.UniqueName)).ToList()));
+    generator.PathAsideBlock(block.Origin, blockBuilder, builder);
 
-    if (hasModifiesClause) {
-      generator.ApplyModifiesEffect(block, etran, builder, block.Modifies, true, block.IsGhost);
-    }
+    generator.ApplyModifiesEffect(block, etran, builder, block.Modifies, true, block.IsGhost);
+    builder.Add(new HavocCmd(Token.NoToken, assignedVariables.Select(v => new BoogieIdentifierExpr(v.Origin, v.UniqueName)).ToList()));
 
     foreach (var ensure in totalEnsures) {
       generator.CheckWellformedAndAssume(ensure.E, new WFOptions(null, false),
@@ -70,11 +67,11 @@ public static class OpaqueBlockVerifier {
   }
 
   private static BoogieGenerator.ExpressionTranslator GetBodyTranslator(BoogieGenerator generator, OpaqueBlock block, Variables locals,
-    BoogieGenerator.ExpressionTranslator etran, bool hasModifiesClause, BoogieStmtListBuilder blockBuilder) {
+    BoogieGenerator.ExpressionTranslator etran, BoogieStmtListBuilder blockBuilder) {
     BoogieGenerator.ExpressionTranslator bodyTranslator;
-    if (hasModifiesClause) {
+    if (block.Modifies.Expressions.Any()) {
       string modifyFrameName = BoogieGenerator.FrameVariablePrefix + generator.CurrentIdGenerator.FreshId("opaque#");
-      generator.DefineFrame(block.Tok, etran.ModifiesFrame(block.Tok), block.Modifies.Expressions, blockBuilder, locals, modifyFrameName);
+      generator.DefineFrame(block.Origin, etran.ModifiesFrame(block.Origin), block.Modifies.Expressions, blockBuilder, locals, modifyFrameName);
       bodyTranslator = etran.WithModifiesFrame(modifyFrameName);
     } else {
       bodyTranslator = etran;

@@ -1,21 +1,21 @@
+#nullable enable
+
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.Contracts;
-using JetBrains.Annotations;
 
 namespace Microsoft.Dafny;
 
 public class BoundVar : NonglobalVariable {
   public override bool IsMutable => false;
 
-  public BoundVar(string name, Type type) : this(Token.NoToken, new Name(Token.NoToken, name), type) { }
-  public BoundVar(IOrigin origin, string name, Type type) : this(origin, new Name(origin.StartToken, name), type) { }
+  public BoundVar(IOrigin origin, string name, Type? syntacticType = null, bool isGhost = false)
+    : this(origin, new Name(origin.Center, name), syntacticType, isGhost) { }
 
-  public BoundVar(IOrigin tok, Name name, Type type)
-    : base(tok, name, type, false) {
-    Contract.Requires(tok != null);
-    Contract.Requires(name != null);
-    Contract.Requires(type != null);
+  [SyntaxConstructor]
+  public BoundVar(IOrigin origin, Name nameNode, Type? syntacticType = null, bool isGhost = false)
+    : base(origin, nameNode, syntacticType, isGhost) { }
+
+  public BoundVar(Cloner cloner, BoundVar original) : base(cloner, original) {
   }
 }
 
@@ -26,15 +26,20 @@ public class BoundVar : NonglobalVariable {
 /// (x <- C) and an optional range boolean expressions (x | E).
 /// </summary>
 [DebuggerDisplay("Quantified<{name}>")]
+[SyntaxBaseType(typeof(NodeWithOrigin))]
 public class QuantifiedVar : BoundVar {
-  public readonly Expression Domain;
-  public readonly Expression Range;
+  public Expression? Domain;
+  public Expression? Range;
 
-  public QuantifiedVar(IOrigin tok, string name, Type type, Expression domain, Expression range)
-    : base(tok, name, type) {
-    Contract.Requires(tok != null);
-    Contract.Requires(name != null);
-    Contract.Requires(type != null);
+  public QuantifiedVar(IOrigin origin, string name, Type? syntacticType, Expression? domain, Expression? range)
+    : base(origin, name, syntacticType) {
+    Domain = domain;
+    Range = range;
+  }
+
+  [SyntaxConstructor]
+  public QuantifiedVar(IOrigin origin, Name nameNode, Type? syntacticType, Expression? domain, Expression? range)
+    : base(origin, nameNode, syntacticType) {
     Domain = domain;
     Range = range;
   }
@@ -42,35 +47,43 @@ public class QuantifiedVar : BoundVar {
   /// <summary>
   /// Map a list of quantified variables to an equivalent list of bound variables plus a single range expression.
   /// The transformation looks like this in general:
-  ///
+  /// 
+  /// <code><![CDATA[
+  /// 
   /// x1 <- C1 | E1, ..., xN <- CN | EN
+  /// 
+  /// ]]></code>
   ///
   /// becomes:
   ///
+  /// <code><![CDATA[
+  /// 
   /// x1, ... xN | x1 in C1 && E1 && ... && xN in CN && EN
+  /// 
+  /// ]]></code>
   ///
   /// Note the result will be null rather than "true" if there are no such domains or ranges.
   /// Some quantification contexts (such as comprehensions) will replace this with "true".
   /// </summary>
-  public static void ExtractSingleRange(List<QuantifiedVar> qvars, out List<BoundVar> bvars, [CanBeNull] out Expression range) {
-    bvars = new List<BoundVar>();
+  public static void ExtractSingleRange(List<QuantifiedVar> qvars, out List<BoundVar> bvars, out Expression? range) {
+    bvars = [];
     range = null;
 
     foreach (var qvar in qvars) {
-      BoundVar bvar = new BoundVar(qvar.Tok, qvar.Name, qvar.SyntacticType);
+      BoundVar bvar = new BoundVar(qvar.Origin, qvar.Name, qvar.SyntacticType);
       bvars.Add(bvar);
 
       if (qvar.Domain != null) {
         // Attach a token wrapper so we can produce a better error message if the domain is not a collection
         var domainWithToken = QuantifiedVariableDomainCloner.Instance.CloneExpr(qvar.Domain);
-        var inDomainExpr = new BinaryExpr(domainWithToken.Tok, BinaryExpr.Opcode.In, new IdentifierExpr(bvar.Tok, bvar), domainWithToken);
-        range = range == null ? inDomainExpr : new BinaryExpr(domainWithToken.Tok, BinaryExpr.Opcode.And, range, inDomainExpr);
+        var inDomainExpr = new BinaryExpr(domainWithToken.Origin.Center, BinaryExpr.Opcode.In, new IdentifierExpr(bvar.Origin, bvar), domainWithToken);
+        range = range == null ? inDomainExpr : new BinaryExpr(domainWithToken.Origin.Center, BinaryExpr.Opcode.And, range, inDomainExpr);
       }
 
       if (qvar.Range != null) {
         // Attach a token wrapper so we can produce a better error message if the range is not a boolean expression
         var rangeWithToken = QuantifiedVariableRangeCloner.Instance.CloneExpr(qvar.Range);
-        range = range == null ? qvar.Range : new BinaryExpr(rangeWithToken.Tok, BinaryExpr.Opcode.And, range, rangeWithToken);
+        range = range == null ? qvar.Range : new BinaryExpr(rangeWithToken.Origin.Center, BinaryExpr.Opcode.And, range, rangeWithToken);
       }
     }
   }
@@ -86,9 +99,9 @@ public interface IBoundVarsBearingExpression {
 }
 
 class QuantifiedVariableDomainCloner : Cloner {
-  public static readonly QuantifiedVariableDomainCloner Instance = new QuantifiedVariableDomainCloner();
+  public static QuantifiedVariableDomainCloner Instance = new QuantifiedVariableDomainCloner();
   private QuantifiedVariableDomainCloner() { }
-  public override IOrigin Origin(IOrigin tok) {
+  public override IOrigin? Origin(IOrigin? tok) {
     if (tok == null) {
       return null;
     }
@@ -98,9 +111,9 @@ class QuantifiedVariableDomainCloner : Cloner {
 }
 
 class QuantifiedVariableRangeCloner : Cloner {
-  public static readonly QuantifiedVariableRangeCloner Instance = new QuantifiedVariableRangeCloner();
+  public static QuantifiedVariableRangeCloner Instance = new QuantifiedVariableRangeCloner();
   private QuantifiedVariableRangeCloner() { }
-  public override IOrigin Origin(IOrigin tok) {
+  public override IOrigin? Origin(IOrigin? tok) {
     if (tok == null) {
       return null;
     }

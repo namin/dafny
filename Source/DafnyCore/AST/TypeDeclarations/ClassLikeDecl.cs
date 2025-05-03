@@ -24,12 +24,14 @@ public abstract class ClassLikeDecl : TopLevelDeclWithMembers, RevealableTypeDec
   public TopLevelDecl AsTopLevelDecl => this;
   public TypeDeclSynonymInfo SynonymInfo { get; set; }
 
-  public ClassLikeDecl(IOrigin rangeOrigin, Name name, ModuleDefinition module,
-    List<TypeParameter> typeArgs, [Captured] List<MemberDecl> members, Attributes attributes, bool isRefining, List<Type>/*?*/ traits)
-    : base(rangeOrigin, name, module, typeArgs, members, attributes, isRefining, traits) {
-    Contract.Requires(rangeOrigin != null);
-    Contract.Requires(name != null);
-    Contract.Requires(module != null);
+  [SyntaxConstructor]
+  protected ClassLikeDecl(IOrigin origin, Name nameNode, Attributes attributes,
+    List<TypeParameter> typeArgs, ModuleDefinition enclosingModuleDefinition,
+    [Captured] List<MemberDecl> members, List<Type> traits)
+    : base(origin, nameNode, enclosingModuleDefinition, typeArgs, members, attributes, traits) {
+    Contract.Requires(origin != null);
+    Contract.Requires(nameNode != null);
+    Contract.Requires(enclosingModuleDefinition != null);
     Contract.Requires(cce.NonNullElements(typeArgs));
     Contract.Requires(cce.NonNullElements(members));
   }
@@ -70,7 +72,7 @@ public abstract class ClassLikeDecl : TopLevelDeclWithMembers, RevealableTypeDec
 
     Attributes.SetIndents(Attributes, indentBefore, formatter);
 
-    foreach (var parent in ParentTraits) {
+    foreach (var parent in Traits) {
       formatter.SetTypeIndentation(parent);
     }
 
@@ -96,4 +98,6 @@ public abstract class ClassLikeDecl : TopLevelDeclWithMembers, RevealableTypeDec
 
     return null;
   }
+
+  public override string ReferenceName => base.ReferenceName + (IsReferenceTypeDecl ? "?" : "");
 }

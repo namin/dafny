@@ -1,3 +1,4 @@
+#nullable enable
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.Linq;
@@ -8,32 +9,24 @@ namespace Microsoft.Dafny;
 /// Parsed from ":="
 /// </summary>
 public class AssignStatement : ConcreteAssignStatement, ICloneable<AssignStatement>, ICanResolve {
-  public readonly List<AssignmentRhs> Rhss;
-  public readonly bool CanMutateKnownState;
-  public Expression OriginalInitialLhs = null;
+  public List<AssignmentRhs> Rhss;
+  public bool CanMutateKnownState;
+  public Expression? OriginalInitialLhs = null;
 
-  public override IOrigin Tok {
-    get {
-      var firstRhs = Rhss.First();
-      if (firstRhs.StartToken != StartToken) {
-        // If there is an operator, use it as a token
-        return firstRhs.StartToken.Prev;
-      }
-
-      return firstRhs.Tok;
-    }
-  }
-
-  [FilledInDuringResolution] public List<Statement> ResolvedStatements;
+  [FilledInDuringResolution] public List<Statement>? ResolvedStatements;
   public override IEnumerable<Statement> SubStatements => Children.OfType<Statement>();
 
   public override IEnumerable<Expression> NonSpecificationSubExpressions =>
-    ResolvedStatements == null ? Rhss.SelectMany(r => r.NonSpecificationSubExpressions) : Enumerable.Empty<Expression>();
+    ResolvedStatements == null ? Rhss.SelectMany(r => r.NonSpecificationSubExpressions) : [];
 
   public override IEnumerable<INode> Children => ResolvedStatements ?? Lhss.Concat<Node>(Rhss);
   public override IEnumerable<INode> PreResolveChildren => Lhss.Concat<Node>(Rhss);
 
-  public override IEnumerable<Statement> PreResolveSubStatements => Enumerable.Empty<Statement>();
+  public override IEnumerable<Statement> PreResolveSubStatements => [];
+
+  public override IEnumerable<IdentifierExpr> GetAssignedLocals() {
+    return ResolvedStatements!.SelectMany(r => r.GetAssignedLocals());
+  }
 
   [ContractInvariantMethod]
   void ObjectInvariant() {
@@ -49,25 +42,28 @@ public class AssignStatement : ConcreteAssignStatement, ICloneable<AssignStateme
     Rhss = original.Rhss.Select(cloner.CloneRHS).ToList();
     CanMutateKnownState = original.CanMutateKnownState;
     if (cloner.CloneResolvedFields) {
-      ResolvedStatements = original.ResolvedStatements.Select(stmt => cloner.CloneStmt(stmt, false)).ToList();
+      ResolvedStatements = original.ResolvedStatements?.Select(stmt => cloner.CloneStmt(stmt, false)).ToList();
     }
   }
 
-  public AssignStatement(IOrigin rangeOrigin, List<Expression> lhss, List<AssignmentRhs> rhss)
-    : base(rangeOrigin, lhss) {
+  public AssignStatement(IOrigin origin, List<Expression> lhss, List<AssignmentRhs> rhss)
+    : base(origin, lhss) {
     Contract.Requires(cce.NonNullElements(lhss));
     Contract.Requires(cce.NonNullElements(rhss));
     Contract.Requires(lhss.Count != 0 || rhss.Count == 1);
     Rhss = rhss;
     CanMutateKnownState = false;
   }
-  public AssignStatement(IOrigin rangeOrigin, List<Expression> lhss, List<AssignmentRhs> rhss, bool mutate)
-    : base(rangeOrigin, lhss) {
+
+  [SyntaxConstructor]
+  public AssignStatement(IOrigin origin, List<Expression> lhss, List<AssignmentRhs> rhss, bool canMutateKnownState,
+    Attributes? attributes = null)
+    : base(origin, lhss, attributes) {
     Contract.Requires(cce.NonNullElements(lhss));
     Contract.Requires(cce.NonNullElements(rhss));
     Contract.Requires(lhss.Count != 0 || rhss.Count == 1);
     Rhss = rhss;
-    CanMutateKnownState = mutate;
+    CanMutateKnownState = canMutateKnownState;
   }
 
   public override IEnumerable<Expression> PreResolveSubExpressions {
@@ -96,15 +92,15 @@ public class AssignStatement : ConcreteAssignStatement, ICloneable<AssignStateme
 
     base.Resolve(resolver, resolutionContext);
 
-    IOrigin firstEffectfulRhs = null;
-    MethodCallInformation methodCallInfo = null;
-    ResolvedStatements = new();
+    IOrigin? firstEffectfulRhs = null;
+    MethodCallInformation? methodCallInfo = null;
+    ResolvedStatements = [];
     foreach (var rhs in Rhss) {
       bool isEffectful;
       if (rhs is TypeRhs) {
         var tr = (TypeRhs)rhs;
         resolver.ResolveTypeRhs(tr, this, resolutionContext);
-        isEffectful = tr.InitCall != null;
+        isEffectful = (tr is AllocateClass { InitCall: not null });
       } else if (rhs is HavocRhs) {
         isEffectful = false;
       } else {
@@ -120,7 +116,7 @@ public class AssignStatement : ConcreteAssignStatement, ICloneable<AssignStateme
         }
       }
       if (isEffectful && firstEffectfulRhs == null) {
-        firstEffectfulRhs = rhs.Tok;
+        firstEffectfulRhs = rhs.Origin;
       }
 
       resolver.ResolveAttributes(rhs, resolutionContext);
@@ -136,7 +132,8 @@ public class AssignStatement : ConcreteAssignStatement, ICloneable<AssignStateme
       } else if (resolver.Reporter.Count(ErrorLevel.Error) == errorCountBeforeCheckingLhs) {
         // add the statements here in a sequence, but don't use that sequence later for translation (instead, should translate properly as multi-assignment)
         for (int i = 0; i < Lhss.Count; i++) {
-          var a = new SingleAssignStmt(Origin, Lhss[i].Resolved, Rhss[i]);
+          var origin = Lhss.Count > 1 ? new OverrideCenter(Origin, Rhss[i].ReportingRange) : Origin;
+          var a = new SingleAssignStmt(origin, Lhss[i].Resolved, Rhss[i]);
           ResolvedStatements.Add(a);
         }
       }
@@ -152,9 +149,8 @@ public class AssignStatement : ConcreteAssignStatement, ICloneable<AssignStateme
           // we have a TypeRhs
           Contract.Assert(Rhss[0] is TypeRhs);
           var tr = (TypeRhs)Rhss[0];
-          Contract.Assert(tr.InitCall != null); // there were effects, so this must have been a call.
           if (tr.CanAffectPreviouslyKnownExpressions) {
-            resolver.Reporter.Error(MessageSource.Resolver, tr.Tok, "can only have initialization methods which modify at most 'this'.");
+            resolver.Reporter.Error(MessageSource.Resolver, tr.Origin, "can only have initialization methods which modify at most 'this'.");
           } else if (resolver.Reporter.Count(ErrorLevel.Error) == errorCountBeforeCheckingLhs) {
             var a = new SingleAssignStmt(Origin, Lhss[0].Resolved, tr);
             ResolvedStatements.Add(a);
@@ -170,7 +166,7 @@ public class AssignStatement : ConcreteAssignStatement, ICloneable<AssignStateme
         // must be a single TypeRhs
         if (Lhss.Count != 1) {
           Contract.Assert(2 <= Lhss.Count);  // the parser allows 0 Lhss only if the whole statement looks like an expression (not a TypeRhs)
-          resolver.Reporter.Error(MessageSource.Resolver, Lhss[1].Tok, "the number of left-hand sides ({0}) and right-hand sides ({1}) must match for a multi-assignment", Lhss.Count, Rhss.Count);
+          resolver.Reporter.Error(MessageSource.Resolver, Lhss[1].Origin, "the number of left-hand sides ({0}) and right-hand sides ({1}) must match for a multi-assignment", Lhss.Count, Rhss.Count);
         } else if (resolver.Reporter.Count(ErrorLevel.Error) == errorCountBeforeCheckingLhs) {
           var a = new SingleAssignStmt(Origin, Lhss[0].Resolved, Rhss[0]);
           ResolvedStatements.Add(a);
@@ -181,7 +177,7 @@ public class AssignStatement : ConcreteAssignStatement, ICloneable<AssignStateme
         foreach (var ll in Lhss) {
           resolvedLhss.Add(ll.Resolved);
         }
-        CallStmt a = new CallStmt(Origin, resolvedLhss, methodCallInfo.Callee, methodCallInfo.ActualParameters, methodCallInfo.Tok);
+        CallStmt a = new CallStmt(Origin, resolvedLhss, methodCallInfo.Callee, methodCallInfo.ActualParameters, methodCallInfo.Tok.ReportingRange);
         a.OriginalInitialLhs = OriginalInitialLhs;
         ResolvedStatements.Add(a);
       }
@@ -194,8 +190,8 @@ public class AssignStatement : ConcreteAssignStatement, ICloneable<AssignStateme
 
   public override void ResolveGhostness(ModuleResolver resolver, ErrorReporter reporter, bool mustBeErasable,
     ICodeContext codeContext,
-    string proofContext, bool allowAssumptionVariables, bool inConstructorInitializationPhase) {
-    ResolvedStatements.ForEach(ss => ss.ResolveGhostness(resolver, reporter, mustBeErasable, codeContext,
+    string? proofContext, bool allowAssumptionVariables, bool inConstructorInitializationPhase) {
+    ResolvedStatements!.ForEach(ss => ss.ResolveGhostness(resolver, reporter, mustBeErasable, codeContext,
       proofContext, allowAssumptionVariables, inConstructorInitializationPhase));
     IsGhost = ResolvedStatements.All(ss => ss.IsGhost);
   }

@@ -1,3 +1,4 @@
+#nullable enable
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 
@@ -12,18 +13,22 @@ public class ClassDecl : ClassLikeDecl {
   [ContractInvariantMethod]
   void ObjectInvariant() {
     Contract.Invariant(cce.NonNullElements(Members));
-    Contract.Invariant(ParentTraits != null);
+    Contract.Invariant(Traits != null);
   }
 
-  public ClassDecl(IOrigin rangeOrigin, Name name, ModuleDefinition module,
-    List<TypeParameter> typeArgs, [Captured] List<MemberDecl> members, Attributes attributes, bool isRefining, List<Type>/*?*/ traits)
-    : base(rangeOrigin, name, module, typeArgs, members, attributes, isRefining, traits) {
-    Contract.Requires(rangeOrigin != null);
-    Contract.Requires(name != null);
-    Contract.Requires(module != null);
+  [SyntaxConstructor]
+  public ClassDecl(IOrigin origin, Name nameNode, Attributes? attributes,
+    List<TypeParameter> typeArgs, ModuleDefinition enclosingModuleDefinition,
+    [Captured] List<MemberDecl> members, List<Type> traits, bool isRefining)
+    : base(origin, nameNode, attributes, typeArgs, enclosingModuleDefinition, members, traits) {
+    Contract.Requires(origin != null);
+    Contract.Requires(nameNode != null);
+    Contract.Requires(enclosingModuleDefinition != null);
     Contract.Requires(cce.NonNullElements(typeArgs));
     Contract.Requires(cce.NonNullElements(members));
     NonNullTypeDecl = new NonNullTypeDecl(this);
+    IsRefining = isRefining;
     this.NewSelfSynonym();
   }
+  public override bool IsRefining { get; }
 }

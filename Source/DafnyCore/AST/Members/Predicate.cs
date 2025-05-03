@@ -10,13 +10,13 @@ public class Predicate : Function {
     DelayedDefinition,  // this predicate declaration provides, for the first time, a body--the declaration refines a previously declared predicate, but the previous one had no body
     Extension  // this predicate extends the definition of a predicate with a body in a module being refined
   }
-  public readonly BodyOriginKind BodyOrigin;
-  public Predicate(IOrigin rangeOrigin, Name name, bool hasStaticKeyword, bool isGhost, bool isOpaque,
+  public BodyOriginKind BodyOrigin;
+  public Predicate(IOrigin rangeOrigin, Name nameNode, bool hasStaticKeyword, bool isGhost, bool isOpaque,
     List<TypeParameter> typeArgs, List<Formal> ins,
     Formal result,
     List<AttributedExpression> req, Specification<FrameExpression> reads, List<AttributedExpression> ens, Specification<Expression> decreases,
     Expression body, BodyOriginKind bodyOrigin, IOrigin/*?*/ byMethodTok, BlockStmt/*?*/ byMethodBody, Attributes attributes, IOrigin signatureEllipsis)
-    : base(rangeOrigin, name, hasStaticKeyword, isGhost, isOpaque, typeArgs, ins, result, Type.Bool, req, reads, ens, decreases, body, byMethodTok, byMethodBody, attributes, signatureEllipsis) {
+    : base(rangeOrigin, nameNode, hasStaticKeyword, isGhost, isOpaque, typeArgs, ins, result, Type.Bool, req, reads, ens, decreases, body, byMethodTok, byMethodBody, attributes, signatureEllipsis) {
     Contract.Requires(bodyOrigin == Predicate.BodyOriginKind.OriginalOrInherited || body != null);
     BodyOrigin = bodyOrigin;
   }

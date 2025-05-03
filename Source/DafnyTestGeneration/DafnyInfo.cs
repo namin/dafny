@@ -35,24 +35,24 @@ namespace DafnyTestGeneration {
     public DafnyInfo(Program program) {
       Options = program.Options;
       subsetToSuperset["_System.string"] = new(
-        new List<TypeParameter>(),
+        [],
         new SeqType(new CharType()));
       subsetToSuperset["string"] = new(
-        new List<TypeParameter>(),
+        [],
         new SeqType(new CharType()));
       subsetToSuperset["_System.nat"] = new(
-        new List<TypeParameter>(),
+        [],
         Type.Int);
       subsetToSuperset["nat"] = new(
-        new List<TypeParameter>(),
+        [],
         Type.Int);
       subsetToSuperset["_System.object"] = new(
-        new List<TypeParameter>(),
-        new UserDefinedType(new Token(), "object", new List<Type>()));
+        [],
+        new UserDefinedType(new Token(), "object", []));
       scopes = program.DefaultModuleDef.TopLevelDecls?
         .OfType<LiteralModuleDecl>()
         .Select(declaration =>
-          declaration.DefaultExport.VisibilityScope).ToList() ?? new List<VisibilityScope>();
+          declaration.DefaultExport.VisibilityScope).ToList() ?? [];
       var visitor = new DafnyInfoExtractor(this);
       visitor.Visit(program);
     }
@@ -84,11 +84,11 @@ namespace DafnyTestGeneration {
       Options.ErrorWriter.WriteLine($"*** Error: Test Generation failed to identify callable {callable}");
 
       SetNonZeroExitCode = true;
-      return new List<TypeParameter>();
+      return [];
     }
 
     public List<TypeParameter> GetTypeArgsWithParents(string callable) {
-      List<TypeParameter> result = new List<TypeParameter>();
+      List<TypeParameter> result = [];
       TopLevelDecl/*?*/ clazz;
       if (methods.ContainsKey(callable)) {
         result.AddRange(methods[callable].TypeArgs);
@@ -258,7 +258,7 @@ namespace DafnyTestGeneration {
             $"*** Error: Test Generation failed to identify type {type?.Name ?? " (null) "}");
 
         SetNonZeroExitCode = true;
-        return new List<(string name, Type type, bool mutable, string/*?*/ defValue)>();
+        return [];
       }
 
       var relevantFields = classes[type.Name].Members.Union(classes[type.Name].InheritedMembers).OfType<Field>()
@@ -438,7 +438,7 @@ namespace DafnyTestGeneration {
         }
       }
 
-      private new void Visit(Method m) {
+      private void Visit(Method m) {
         info.methods[m.FullDafnyName] = m;
       }
 
@@ -478,11 +478,11 @@ namespace DafnyTestGeneration {
           return null;
         }
         switch (expr) {
-          case ImplicitThisExpr_ConstructorCall:
+          case ImplicitThisExprConstructorCall:
             isValidExpression = false;
             return base.CloneExpr(expr);
           case ThisExpr:
-            return new IdentifierExpr(expr.Tok, receiver);
+            return new IdentifierExpr(expr.Origin, receiver);
           case AutoGhostIdentifierExpr:
             isValidExpression = false;
             return base.CloneExpr(expr);
@@ -521,7 +521,7 @@ namespace DafnyTestGeneration {
               }
               if ((identifierExpr.Var != null) &&
                   subst.ContainsKey(identifierExpr.Var)) {
-                return new IdentifierExpr(expr.Tok, subst[identifierExpr.Var]);
+                return new IdentifierExpr(expr.Origin, subst[identifierExpr.Var]);
               }
               return base.CloneExpr(expr);
             }
@@ -532,7 +532,7 @@ namespace DafnyTestGeneration {
                 return base.CloneExpr(expr);
               }
               if (memberSelectExpr.Obj is StaticReceiverExpr staticReceiverExpr) {
-                return new IdentifierExpr(expr.Tok,
+                return new IdentifierExpr(expr.Origin,
                   ((staticReceiverExpr.Type) as UserDefinedType).ResolvedClass
                   .FullDafnyName + "." + memberSelectExpr.MemberName);
               }

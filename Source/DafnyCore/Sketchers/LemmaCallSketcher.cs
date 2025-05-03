@@ -81,14 +81,14 @@ namespace Microsoft.Dafny {
 
         private (string FunctionName, List<Expression> Arguments)? ParseCalledAttribute(Attributes calledAttribute) {
             if (calledAttribute.Args.Count < 1) {
-                reportError(calledAttribute.Tok, ":called attribute is missing arguments");
+                reportError(calledAttribute.StartToken, ":called attribute is missing arguments");
                 return null;
             }
 
             // Resolve the function name (first argument) as an identifier
             var functionNameExpr = calledAttribute.Args[0] as NameSegment;
             if (functionNameExpr == null) {
-                reportError(calledAttribute.Tok, "Invalid function name in :called attribute");
+                reportError(calledAttribute.StartToken, "Invalid function name in :called attribute");
                 return null;
             }
 
@@ -105,7 +105,7 @@ namespace Microsoft.Dafny {
 
         private string? ExtractLemmaName(Attributes lemmaAttribute) {
             if (lemmaAttribute.Args.Count != 1) {
-                reportError(lemmaAttribute.Tok, "Invalid :lemma attribute; expected one argument");
+                reportError(lemmaAttribute.StartToken, "Invalid :lemma attribute; expected one argument");
                 return null;
             }
 
