@@ -26,7 +26,7 @@ namespace Microsoft.Dafny {
             return filterAssumeCode(response);
         }
         private string filterQuotedDafny(string response) {
-            var codeBlockPattern = @"(?s)```(dafny)?\s+(.*?)```";
+            var codeBlockPattern = @"(?s)```([Dd]afny)?\s+(.*?)```";
 
             var extractedCode = new List<string>();
             var matches = Regex.Matches(response, codeBlockPattern);
