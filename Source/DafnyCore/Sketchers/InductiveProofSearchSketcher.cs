@@ -227,13 +227,14 @@ namespace Microsoft.Dafny {
                 
                 // Create a Boogie program from the Dafny program
                 var boogiePrograms = BoogieGenerator.Translate(program, program.Reporter, 
-                        new BoogieGenerator.TranslatorFlags(options) { InsertChecksums = true }).ToList();
+                        new BoogieGenerator.TranslatorFlags(options)).ToList();
                 
                 int verificationErrors = 0;
                 
                 // For each translated Boogie program, run verification
                 foreach (var boogieProgram in boogiePrograms)
                 {
+                    Log("### Boogie program " + boogieProgram.Item1);
                     var baseFilename = dafnyFile.Uri.LocalPath;
                     
                     // Set up the execution engine
@@ -246,7 +247,7 @@ namespace Microsoft.Dafny {
                         options.OutputWriter, 
                         engine, 
                         baseFilename, 
-                        boogieProgram.Item1, 
+                        null, 
                         boogieProgram.Item2, 
                         "verification");
                     
