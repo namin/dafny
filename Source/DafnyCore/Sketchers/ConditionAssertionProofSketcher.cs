@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Dafny;
 using System.Text;
+using System.Security.Cryptography.X509Certificates;
 
 namespace Microsoft.Dafny {
   public class ConditionAssertionProofSketcher : ProofSketcher {
@@ -13,7 +14,21 @@ namespace Microsoft.Dafny {
     /// <param name="method">The method containing the gap.</param>
     /// <param name="lineNumber">The line number of the gap.</param>
     /// <returns>A string containing assertions for implicit conditions.</returns>
-    override public string GenerateProofSketch(Program program, Method method, int? lineNumber) {
+    override public string GenerateProofSketch(Program program, Method? maybeMethod, int? maybeLineNumber) {
+      var method = maybeMethod;
+      var lineNumber = maybeLineNumber;
+      if (maybeMethod is null) {
+        if (lineNumber is null) {
+          return "// Missing position info";
+        }
+        method = maybeMethod ?? FindMethod(program, lineNumber.Value);
+      }
+      if (method is null) {
+        return "// Cannot find method";
+      }
+      if (lineNumber is null) {
+        lineNumber = method.StartToken.line + 1;
+      }
       var sb = new StringBuilder();
       sb.AppendLine("");
 
@@ -34,6 +49,29 @@ namespace Microsoft.Dafny {
       return sb.ToString();
     }
 
+    private Method FindMethod(Program program, int lineNumber) {
+      //Log("# Getting Method");
+      if (program.DefaultModuleDef is DefaultModuleDefinition defaultModule) {
+        foreach (var topLevelDecl in defaultModule.TopLevelDecls) {
+          if (topLevelDecl is TopLevelDeclWithMembers classDecl) {
+            foreach (var member in classDecl.Members) {
+              var method = member as Method;
+              if (method != null) {
+                //var methodDetails = $"lines {method.Tok.line}-{method.EndToken.line}";
+                if (method.StartToken.line <= lineNumber && lineNumber <= method.EndToken.line) {
+                  //Log("## Found method: " + methodDetails);
+                  return method;
+                } else {
+                  //Log("## Method out of range: " + methodDetails);
+                }
+              }
+            }
+          }
+        }
+      }
+      return null;
+    }
+  
     /// <summary>
     /// Collects pre-gap conditions based on control flow up to a specified line.
     /// </summary>
