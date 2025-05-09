@@ -28,26 +28,24 @@ namespace Microsoft.Dafny {
       return GenerateStandardInductionProofSketch(method);
     }
 
-    private FunctionCallExpr? RequiresCallsFunction(Method method) {
-        FunctionCallExpr? fallbackFunctionCallExpr = null;
-
+    public List<(FunctionCallExpr,bool)> AllRequiresCalls(Method method) {
+        var requireCalls = new List<(FunctionCallExpr,bool)>();
         foreach (var req in method.Req) {
             var functionCallExpr = FindFunctionCallExpr(req.E);
             if (functionCallExpr != null) {
                 // Check for the {:induction_target} attribute
-                if (req.Attributes != null && req.Attributes.Name == "induction_target") {
-                    return functionCallExpr; // Immediately prioritize and return
-                }
-
-                // Save the first valid function call expression as a fallback
-                if (fallbackFunctionCallExpr == null) {
-                    fallbackFunctionCallExpr = functionCallExpr;
-                }
+                bool target = req.Attributes != null && req.Attributes.Name == "induction_target";
+                requireCalls.Add((functionCallExpr, target));
             }
         }
-
-        // Return the fallback if no prioritized clause is found
-        return fallbackFunctionCallExpr;
+        return requireCalls;
+    }
+    private FunctionCallExpr? RequiresCallsFunction(Method method) {
+        var list = AllRequiresCalls(method);
+        FunctionCallExpr? result =
+            list.FirstOrDefault(item => item.Item2).Item1
+            ?? list.FirstOrDefault().Item1;
+        return result;
     }
 
     private FunctionCallExpr? FindFunctionCallExpr(Expression expr) {
