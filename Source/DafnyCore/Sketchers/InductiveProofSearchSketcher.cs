@@ -40,7 +40,9 @@ namespace Microsoft.Dafny {
         considerSketch(sketches, programText, method.Name, lineNo,
             inductiveProofSketcher.BuildProofSketch(method, inductionVar));
       }
-      return string.Join("\n\n", sketches.OrderBy(pair => pair.Item2).Select(x => "// count " + x.Item2 + "\n" + x.Item1));
+      var bestFirst = sketches.OrderBy(pair => pair.Item2).ToList();
+      Log(string.Join("\n\n", bestFirst.Select(x => "// count " + x.Item2 + "\n" + x.Item1)));
+      return bestFirst.FirstOrDefault().Item1;
     }
 
     private int FindInsertionLine(string programText, Method method)
