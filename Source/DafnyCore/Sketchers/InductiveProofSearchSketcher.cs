@@ -59,11 +59,11 @@ namespace Microsoft.Dafny {
             return -1;
         }
         
-        // Start position of the method/lemma declaration
-        int startPos = match.Index;
+        // Calculate the end position of the match
+        int endPos = match.Index + match.Length;
         
-        // Find the first opening brace after the method/lemma declaration
-        int openBracePos = programText.IndexOf('{', startPos);
+        // Find the first opening brace after the method/lemma declaration match
+        int openBracePos = programText.IndexOf('{', endPos);
         if (openBracePos == -1)
         {
             Log("### No opening brace found");
@@ -90,8 +90,8 @@ namespace Microsoft.Dafny {
             }
         }
         
-        // Return the line number (adding 1 for the line after the newline)
-        return lineCount + 1;
+        // Return the line number
+        return lineCount;
     }
 
     private void considerSketch(List<(string, int)> sketches, string programText, int lineNumber, string sketch) {
