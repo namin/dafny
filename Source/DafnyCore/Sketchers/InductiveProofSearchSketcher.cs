@@ -62,13 +62,32 @@ namespace Microsoft.Dafny {
         // Calculate the end position of the match
         int endPos = match.Index + match.Length;
         
-        // Find the first opening brace after the method/lemma declaration match
-        int openBracePos = programText.IndexOf('{', endPos);
-        if (openBracePos == -1)
+        // Find the first opening brace after the method declaration that's not followed by ':'
+        int openBracePos = -1;
+        int pos = endPos;
+        
+        // Iterate through the text to find a '{' not followed by ':'
+        while (pos < programText.Length)
         {
-            Log("### No opening brace found");
-            // No opening brace found
-            return -1;
+            pos = programText.IndexOf('{', pos);
+            if (pos == -1)
+            {
+                Log("### No opening brace found");
+                // No opening brace found
+                return -1;
+            }
+            
+            // Check if the '{' is followed by ':'
+            if (pos + 1 < programText.Length && programText[pos + 1] == ':')
+            {
+                // This '{' is followed by ':', continue searching
+                pos++;
+                continue;
+            }
+            
+            // Found a '{' not followed by ':'
+            openBracePos = pos;
+            break;
         }
         
         // Find the next line after the opening brace
@@ -90,7 +109,6 @@ namespace Microsoft.Dafny {
             }
         }
         
-        // Return the line number
         return lineCount;
     }
 
