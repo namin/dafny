@@ -1,8 +1,7 @@
-using System;
 using System.Collections.Generic;
-using Microsoft.Dafny;
 using System.Text;
-using System.Security.Cryptography.X509Certificates;
+using static Microsoft.Dafny.DafnyLogger;
+
 
 namespace Microsoft.Dafny {
   public class ConditionAssertionProofSketcher : ProofSketcher {
@@ -49,6 +48,7 @@ namespace Microsoft.Dafny {
       return sb.ToString();
     }
 
+    // TODO: this should be more generally available.
     private Method FindMethod(Program program, int lineNumber) {
       //Log("# Getting Method");
       if (program.DefaultModuleDef is DefaultModuleDefinition defaultModule) {
@@ -76,6 +76,7 @@ namespace Microsoft.Dafny {
     /// Collects pre-gap conditions based on control flow up to a specified line.
     /// </summary>
     private List<string> CollectPreGapConditions(Method method, int? lineNumber) {
+      Log("## Pre-gap conditions");
       var conditions = new List<string>();
 
       // Step 1: Add method preconditions
@@ -85,6 +86,7 @@ namespace Microsoft.Dafny {
 
       // Step 2: Traverse statements leading up to the gap, adding conditions from invariants, branches, and assignments
       foreach (var stmt in GetStatementsUpToLine(method.Body, lineNumber)) {
+        Log("### Statement: " + stmt);
         if (stmt is WhileStmt whileStmt) {
           // Add loop invariant as a pre-gap condition if within the loop
           foreach (var inv in whileStmt.Invariants) {
@@ -131,7 +133,7 @@ namespace Microsoft.Dafny {
       // Example pseudo-code to collect all statements up to the specified line number
       var statements = new List<Statement>();
       foreach (var stmt in body.Body) {
-        if (stmt.StartToken.line >= lineNumber) { 
+        if (stmt.StartToken.line > lineNumber) { 
           break;
         }
         statements.Add(stmt);
