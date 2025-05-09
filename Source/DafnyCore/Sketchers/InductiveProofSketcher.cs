@@ -348,7 +348,7 @@ namespace Microsoft.Dafny {
 
       var inductionVariables = FindInductionVariables(method);
       if (inductionVariables.Count > 0) {
-        var proofSketch = BuildProofSketch(method, inductionVariables);
+        var proofSketch = BuildProofSketch(method, inductionVariables[0]);
         sb.Append(proofSketch);
       } else {
         sb.AppendLine($"{Indent(0)}// No suitable induction variable found.");
@@ -357,7 +357,7 @@ namespace Microsoft.Dafny {
       return sb.ToString();
     }
 
-    private List<IVariable> FindInductionVariables(Method method) {
+    public List<IVariable> FindInductionVariables(Method method) {
       var inductionVariables = new List<IVariable>();
 
       if (method.Decreases.Expressions.Count > 0) {
@@ -365,14 +365,12 @@ namespace Microsoft.Dafny {
         var decreasesVar = GetVariableFromExpression(decreasesExpr);
         if (decreasesVar != null) {
           inductionVariables.Add(decreasesVar);
-          return inductionVariables;
         }
       }
 
       foreach (var formal in method.Ins) {
         if (IsNatType(formal.Type) || formal.Type.IsDatatype) {
           inductionVariables.Add(formal);
-          break;
         }
       }
 
@@ -391,9 +389,8 @@ namespace Microsoft.Dafny {
       return userDefinedType != null && userDefinedType.Name == "nat";
     }
 
-    private string BuildProofSketch(Method method, List<IVariable> inductionVariables) {
+    public string BuildProofSketch(Method method, IVariable inductionVar) {
       var sb = new StringBuilder();
-      var inductionVar = inductionVariables[0];
 
       if (inductionVar.Type.IsDatatype) {
         sb.AppendLine($"{Indent(0)}// Structural induction on {inductionVar.Name}");
