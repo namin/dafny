@@ -5,6 +5,7 @@ using System.IO;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using static Microsoft.Dafny.DafnyLogger;
+using Microsoft.Boogie;
 
 namespace Microsoft.Dafny {
 
@@ -176,7 +177,7 @@ namespace Microsoft.Dafny {
         // Create DafnyOptions with default settings
         var options = DafnyOptions.Default;
         options.VerifySnapshots = 1; // Basic verification
-
+        
         // Create a temporary file with the sketch content
         string tempFilePath = Path.GetTempFileName() + ".dfy";
         File.WriteAllText(tempFilePath, programText);
@@ -211,12 +212,55 @@ namespace Microsoft.Dafny {
             }
             
             // If verification is needed, proceed with it
-            if (program != null && program.Reporter != null)
+            if (program != null)
             {
-                // You can run verification here using the Boogie pipeline
-                // For a simple count, we can use the error count from the reporter
-                Log("### Using error count from reporter");
-                return program.Reporter.Count(Microsoft.Dafny.ErrorLevel.Error);
+                // First, check for any parse/resolve/typecheck errors
+                int parseResolveErrors = program.Reporter.CountExceptVerifierAndCompiler(ErrorLevel.Error);
+                if (parseResolveErrors > 0)
+                {
+                    Log($"### Parse/resolve/typecheck errors: {parseResolveErrors}");
+                    return parseResolveErrors;
+                }
+                
+                // Now proceed with verification
+                Log("### Running Boogie verification");
+                
+                // Create a Boogie program from the Dafny program
+                var boogiePrograms = BoogieGenerator.Translate(program, program.Reporter, 
+                        new BoogieGenerator.TranslatorFlags(options) { InsertChecksums = true }).ToList();
+                
+                int verificationErrors = 0;
+                
+                // For each translated Boogie program, run verification
+                foreach (var boogieProgram in boogiePrograms)
+                {
+                    var baseFilename = dafnyFile.Uri.LocalPath;
+                    
+                    // Set up the execution engine
+                    ExecutionEngine engine = ExecutionEngine.CreateWithoutSharedCache(options);
+                    
+                    // Run verification
+                    var (outcome, stats) = await DafnyMain.BoogieOnce(
+                        program.Reporter, 
+                        options, 
+                        options.OutputWriter, 
+                        engine, 
+                        baseFilename, 
+                        boogieProgram.Item1, 
+                        boogieProgram.Item2, 
+                        "verification");
+                    
+                    // Check if verification succeeded and update error count
+                    if (!DafnyMain.IsBoogieVerified(outcome, stats))
+                    {
+                        verificationErrors += stats.ErrorCount + stats.InconclusiveCount + 
+                                            stats.TimeoutCount + stats.OutOfResourceCount + 
+                                            stats.OutOfMemoryCount;
+                    }
+                }
+                
+                Log($"### Verification errors: {verificationErrors}");
+                return verificationErrors;
             }
             
             Log("### No error found");
