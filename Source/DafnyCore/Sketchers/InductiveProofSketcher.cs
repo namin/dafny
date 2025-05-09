@@ -2,9 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Microsoft.Boogie.SMTLib;
 using Microsoft.Dafny;
-using RAST;
 
 namespace Microsoft.Dafny {
 
@@ -61,7 +59,7 @@ namespace Microsoft.Dafny {
       return null;
     }
 
-    private string GenerateFunctionBasedInductionProofSketch(Method method, FunctionCallExpr functionCallExpr) {
+    public string GenerateFunctionBasedInductionProofSketch(Method method, FunctionCallExpr functionCallExpr) {
       var sb = new StringBuilder();
       sb.AppendLine($"{Indent(0)}// Inductive proof using rule induction");
       sb.AppendLine($"{Indent(0)}// following function: {functionCallExpr.Function.Name}");

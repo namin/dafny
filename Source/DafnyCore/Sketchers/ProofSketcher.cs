@@ -9,13 +9,15 @@ public abstract class ProofSketcher : InductionRewriter, ISketcher {
     return Task.FromResult(new SketchResponse(GenerateProofSketch(input.ResolvedProgram, input.Method, input.LineNumber)));
   }
   public abstract string GenerateProofSketch(Program program, Method method, int? lineNumber);
-  public static readonly List<string> Types = new List<string> { "induction", "assertions", "call_lemma" };
+  public static readonly List<string> Types = new List<string> { "induction", "induction_search", "assertions", "call_lemma" };
 
   public static ProofSketcher? Create(string sketchType, ErrorReporter reporter)
   {
     switch (sketchType.ToLower()) {
       case "induction":
         return new InductiveProofSketcher(reporter);
+      case "induction_search":
+        return new InductiveProofSearchSketcher(reporter);
       case "assertions":
         return new ConditionAssertionProofSketcher(reporter);
       case "call_lemma":
