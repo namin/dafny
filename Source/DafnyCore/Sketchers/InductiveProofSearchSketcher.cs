@@ -33,14 +33,14 @@ namespace Microsoft.Dafny {
       var vars = inductiveProofSketcher.FindInductionVariables(method).Distinct().ToList();
       var sketches = new List<(string, int)>();
       foreach (var requireCall in requiresCalls) {
-        considerSketch(sketches, programText, lineNo,
+        considerSketch(sketches, programText, method.Name, lineNo,
             inductiveProofSketcher.GenerateFunctionBasedInductionProofSketch(method, requireCall));
       }
       foreach (var inductionVar in vars) {
-        considerSketch(sketches, programText, lineNo,
+        considerSketch(sketches, programText, method.Name, lineNo,
             inductiveProofSketcher.BuildProofSketch(method, inductionVar));
       }
-      return string.Join("\n\n", sketches.Select(x => "// count " + x.Item2 + "\n" + x.Item1));
+      return string.Join("\n\n", sketches.OrderBy(pair => pair.Item2).Select(x => "// count " + x.Item2 + "\n" + x.Item1));
     }
 
     private int FindInsertionLine(string programText, Method method)
@@ -113,14 +113,14 @@ namespace Microsoft.Dafny {
         return lineCount;
     }
 
-    private void considerSketch(List<(string, int)> sketches, string programText, int lineNumber, string sketch) {
-        var count = VerifyCountErrors(programText, sketch, lineNumber);
+    private void considerSketch(List<(string, int)> sketches, string programText, string methodName, int lineNumber, string sketch) {
+        var count = VerifyCountErrors(programText, sketch, methodName, lineNumber);
         sketches.Add((sketch, count));
     }
 
-    private int VerifyCountErrors(String program, string sketch, int lineNumber) {
+    private int VerifyCountErrors(String program, string sketch, string methodName, int lineNumber) {
         var sketchedProgram = InsertSketchAtLine(program, sketch, lineNumber);
-        return VerifyDafnyProgramSync(sketchedProgram);
+        return VerifyDafnyProgramSync(sketchedProgram, methodName);
     }
 
     public string InsertSketchAtLine(string program, string sketch, int lineNumber)
@@ -162,110 +162,27 @@ namespace Microsoft.Dafny {
         }
     }
 
-    public int VerifyDafnyProgramSync(string programText)
+    private int VerifyDafnyProgramSync(string programText, string methodName)
     {
         // This will block the current thread until the task completes
         // WARNING: Can cause deadlocks if the task depends on the current thread
-        Task<int> task = VerifyDafnyProgram(programText);
+        Task<int> task = VerifyDafnyProgram(programText, methodName);
         return task.Result;
     }
 
-    static async Task<int> VerifyDafnyProgram(string programText)
+    private static async Task<int> VerifyDafnyProgram(string programText, string methodName)
     {
         Log("## Program to verify");
         Log(programText);
-        // Create DafnyOptions with default settings
-        var options = DafnyOptions.Default;
-        options.VerifySnapshots = 1; // Basic verification
-        
         // Create a temporary file with the sketch content
         string tempFilePath = Path.GetTempFileName() + ".dfy";
         File.WriteAllText(tempFilePath, programText);
-
         try
         {
-            // Create a DafnyFile from the temporary file
-            var uri = new Uri(tempFilePath);
-            var dafnyFile = DafnyFile.HandleDafnyFile(OnDiskFileSystem.Instance,
-                new ErrorReporterSink(options), options, uri, Token.NoToken);
-            var files = new List<DafnyFile> { dafnyFile };
-            
-            // Parse and check the program
-            var (program, error) = await DafnyMain.ParseCheck(
-                new StringReader(""), 
-                files, 
-                "SketchVerification", 
-                options);
-            
-            if (error != null)
-            {
-                // If there's an error in parsing/resolving, extract the count
-                string[] parts = error.Split(' ');
-                if (int.TryParse(parts[0], out int count))
-                {
-                    Log("### Error in parsing/resolving: " + count);
-                    return count;
-                }
-                // If we can't parse the count, assume at least one error
-                Log("### Cannot parse the count");
-                return 1;
-            }
-            
-            // If verification is needed, proceed with it
-            if (program != null)
-            {
-                // First, check for any parse/resolve/typecheck errors
-                int parseResolveErrors = program.Reporter.CountExceptVerifierAndCompiler(ErrorLevel.Error);
-                if (parseResolveErrors > 0)
-                {
-                    Log($"### Parse/resolve/typecheck errors: {parseResolveErrors}");
-                    return parseResolveErrors;
-                }
-                
-                // Now proceed with verification
-                Log("### Running Boogie verification");
-                
-                // Create a Boogie program from the Dafny program
-                var boogiePrograms = BoogieGenerator.Translate(program, program.Reporter, 
-                        new BoogieGenerator.TranslatorFlags(options)).ToList();
-                
-                int verificationErrors = 0;
-                
-                // For each translated Boogie program, run verification
-                foreach (var boogieProgram in boogiePrograms)
-                {
-                    Log("### Boogie program " + boogieProgram.Item1);
-                    var baseFilename = dafnyFile.Uri.LocalPath;
-                    
-                    // Set up the execution engine
-                    ExecutionEngine engine = ExecutionEngine.CreateWithoutSharedCache(options);
-                    
-                    // Run verification
-                    var (outcome, stats) = await DafnyMain.BoogieOnce(
-                        program.Reporter, 
-                        options, 
-                        options.OutputWriter, 
-                        engine, 
-                        baseFilename, 
-                        null, 
-                        boogieProgram.Item2, 
-                        "verification");
-                    
-                    // Check if verification succeeded and update error count
-                    if (!DafnyMain.IsBoogieVerified(outcome, stats))
-                    {
-                        verificationErrors += stats.ErrorCount + stats.InconclusiveCount + 
-                                            stats.TimeoutCount + stats.OutOfResourceCount + 
-                                            stats.OutOfMemoryCount;
-                    }
-                }
-                
-                Log($"### Verification errors: {verificationErrors}");
-                return verificationErrors;
-            }
-            
-            Log("### No error found");
-            return 0; // No errors found
+            var text = await VerifierCmd.RunVerifier(tempFilePath, "--filter-symbol " + methodName);
+            Log("### Verifier output");
+            Log(text);
+            return ParseErrorCount(text) ?? -1;
         }
         finally
         {
@@ -274,6 +191,25 @@ namespace Microsoft.Dafny {
             {
                 File.Delete(tempFilePath);
             }
+        }
+    }
+
+    public static int? ParseErrorCount(string output)
+    {
+        // Regular expression to match the entire Dafny output format
+        Regex regex = new Regex(@"Dafny program verifier finished with \d+ verified, (\d+) errors?");
+        
+        // Extract the match
+        Match match = regex.Match(output);
+        
+        // If we have a match, return the error count, otherwise return null
+        if (match.Success)
+        {
+            return int.Parse(match.Groups[1].Value);
+        }
+        else
+        {
+            return null;
         }
     }
   }
