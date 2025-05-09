@@ -19,8 +19,8 @@ namespace Microsoft.Dafny {
       if (method == null) {
         return "// Error: No method resolved.";
       }
-      var requiresCalls = inductiveProofSketcher.AllRequiresCalls(method).Select(item => item.Item1);
-      var vars = inductiveProofSketcher.FindInductionVariables(method);
+      var requiresCalls = inductiveProofSketcher.AllRequiresCalls(method).Select(item => item.Item1).Distinct().ToList();
+      var vars = inductiveProofSketcher.FindInductionVariables(method).Distinct().ToList();
       var sketches = new List<string>();
       foreach (var requireCall in requiresCalls) {
         sketches.Add(inductiveProofSketcher.GenerateFunctionBasedInductionProofSketch(method, requireCall));
