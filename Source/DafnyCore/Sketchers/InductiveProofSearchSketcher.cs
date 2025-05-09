@@ -2,9 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
-using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using Serilog;
 using static Microsoft.Dafny.DafnyLogger;
 
 namespace Microsoft.Dafny {
@@ -22,10 +21,13 @@ namespace Microsoft.Dafny {
       if (method == null) {
         return "// Error: No method resolved.";
       }
-      var lineNo = lineNumber ?? method.EndToken.line;
       string programText = PrintProgramToString(program);
       Log("## Program text");
       Log(programText);
+      var lineNo = FindInsertionLine(programText, method);
+      if (lineNo < 0) {
+        return "// Cannot find method";
+      }
       var requiresCalls = inductiveProofSketcher.AllRequiresCalls(method).Select(item => item.Item1).Distinct().ToList();
       var vars = inductiveProofSketcher.FindInductionVariables(method).Distinct().ToList();
       var sketches = new List<(string, int)>();
@@ -38,6 +40,58 @@ namespace Microsoft.Dafny {
             inductiveProofSketcher.BuildProofSketch(method, inductionVar));
       }
       return string.Join("\n\n", sketches.Select(x => "// count " + x.Item2 + "\n" + x.Item1));
+    }
+
+    private int FindInsertionLine(string programText, Method method)
+    {
+        // Find the pattern "method NAME" or "lemma NAME" where NAME matches the method name
+        string pattern = $"(method|lemma)[^\n]*{Regex.Escape(method.Name)}";
+        Log("### Pattern: " + pattern);
+        Regex methodRegex = new Regex(pattern);
+        
+        // Find the match in the program text
+        Match match = methodRegex.Match(programText);
+        
+        if (!match.Success)
+        {
+            Log("### Didn't match");
+            // Method/lemma definition not found
+            return -1;
+        }
+        
+        // Start position of the method/lemma declaration
+        int startPos = match.Index;
+        
+        // Find the first opening brace after the method/lemma declaration
+        int openBracePos = programText.IndexOf('{', startPos);
+        if (openBracePos == -1)
+        {
+            Log("### No opening brace found");
+            // No opening brace found
+            return -1;
+        }
+        
+        // Find the next line after the opening brace
+        int newlinePos = programText.IndexOf('\n', openBracePos);
+        if (newlinePos == -1)
+        {
+            Log("### No newline after opening brace");
+            // No newline after opening brace
+            return -1;
+        }
+        
+        // Count the number of newlines from the beginning to the line after opening brace
+        int lineCount = 0;
+        for (int i = 0; i <= newlinePos; i++)
+        {
+            if (programText[i] == '\n')
+            {
+                lineCount++;
+            }
+        }
+        
+        // Return the line number (adding 1 for the line after the newline)
+        return lineCount + 1;
     }
 
     private void considerSketch(List<(string, int)> sketches, string programText, int lineNumber, string sketch) {
@@ -99,6 +153,8 @@ namespace Microsoft.Dafny {
 
     static async Task<int> VerifyDafnyProgram(string programText)
     {
+        Log("## Program to verify");
+        Log(programText);
         // Create DafnyOptions with default settings
         var options = DafnyOptions.Default;
         options.VerifySnapshots = 1; // Basic verification
@@ -128,9 +184,11 @@ namespace Microsoft.Dafny {
                 string[] parts = error.Split(' ');
                 if (int.TryParse(parts[0], out int count))
                 {
+                    Log("### Error in parsing/resolving: " + count);
                     return count;
                 }
                 // If we can't parse the count, assume at least one error
+                Log("### Cannot parse the count");
                 return 1;
             }
             
@@ -139,9 +197,11 @@ namespace Microsoft.Dafny {
             {
                 // You can run verification here using the Boogie pipeline
                 // For a simple count, we can use the error count from the reporter
+                Log("### Using error count from reporter");
                 return program.Reporter.Count(Microsoft.Dafny.ErrorLevel.Error);
             }
             
+            Log("### No error found");
             return 0; // No errors found
         }
         finally
