@@ -143,10 +143,6 @@ namespace Microsoft.Dafny {
               }
             }
           }
-        } else if (stmt is CallStmt callStmt) {
-          foreach (var e in callStmt.Method.Ens) {
-            conditions.Add(e.E.ToString());
-          }
         }
         // Additional handling can go here for other control flow constructs
       }
