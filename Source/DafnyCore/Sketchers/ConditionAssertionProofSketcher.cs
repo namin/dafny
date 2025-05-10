@@ -1,4 +1,7 @@
 using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using static Microsoft.Dafny.DafnyLogger;
 
@@ -20,7 +23,7 @@ namespace Microsoft.Dafny {
         if (lineNumber is null) {
           return "// Missing position info";
         }
-        method = maybeMethod ?? FindMethod(program, lineNumber.Value);
+        method = maybeMethod ?? FindMethodFromLine(program, lineNumber.Value);
       }
       if (method is null) {
         return "// Cannot find method";
@@ -34,7 +37,7 @@ namespace Microsoft.Dafny {
       var s = 2; // TODO: infer from gap location
       
       sb.AppendLine($"{Indent(s)}// Pre-gap conditions");
-      foreach (var condition in CollectPreGapConditions(method, lineNumber)) {
+      foreach (var condition in CollectPreGapConditions(program, method, lineNumber)) {
         sb.AppendLine($"{Indent(s)}assert {condition};");
       }
 
@@ -49,7 +52,7 @@ namespace Microsoft.Dafny {
     }
 
     // TODO: this should be more generally available.
-    private Method FindMethod(Program program, int lineNumber) {
+    private Method FindMethodFromLine(Program program, int lineNumber) {
       //Log("# Getting Method");
       if (program.DefaultModuleDef is DefaultModuleDefinition defaultModule) {
         foreach (var topLevelDecl in defaultModule.TopLevelDecls) {
@@ -71,11 +74,33 @@ namespace Microsoft.Dafny {
       }
       return null;
     }
-  
+     private Method FindMethod(Program program, string methodName) {
+      //Log("# Getting Method");
+      if (program.DefaultModuleDef is DefaultModuleDefinition defaultModule) {
+        foreach (var topLevelDecl in defaultModule.TopLevelDecls) {
+          if (topLevelDecl is TopLevelDeclWithMembers classDecl) {
+            foreach (var member in classDecl.Members) {
+              var method = member as Method;
+              if (method != null) {
+                //var methodDetails = $"lines {method.Tok.line}-{method.EndToken.line}";
+                if (method.Name == methodName) {
+                  //Log("## Found method: " + methodDetails);
+                  return method;
+                } else {
+                  //Log("## Method out of range: " + methodDetails);
+                }
+              }
+            }
+          }
+        }
+      }
+      return null;
+    }
+   
     /// <summary>
     /// Collects pre-gap conditions based on control flow up to a specified line.
     /// </summary>
-    private List<string> CollectPreGapConditions(Method method, int? lineNumber) {
+    private List<string> CollectPreGapConditions(Program program, Method method, int? lineNumber) {
       Log("## Pre-gap conditions");
       var conditions = new List<string>();
 
@@ -86,7 +111,7 @@ namespace Microsoft.Dafny {
 
       // Step 2: Traverse statements leading up to the gap, adding conditions from invariants, branches, and assignments
       foreach (var stmt in GetStatementsUpToLine(method.Body, lineNumber)) {
-        Log("### Statement: " + stmt);
+        Log("### Statement: " + stmt + " : " + stmt.GetType());
         if (stmt is WhileStmt whileStmt) {
           // Add loop invariant as a pre-gap condition if within the loop
           foreach (var inv in whileStmt.Invariants) {
@@ -95,6 +120,33 @@ namespace Microsoft.Dafny {
         } else if (stmt is IfStmt ifStmt) {
           // Add conditions based on the true or false branch we are in
           conditions.Add(ifStmt.Guard.ToString());
+        } else if (stmt is AssignStatement aStmt) {
+          foreach (var rhs in aStmt.Rhss) {
+            foreach (var e in rhs.SubExpressions) {
+              Log("### RHS e: " + e + " : " + e.GetType());
+              if (e is ApplySuffix aE) {
+                var es = e.SubExpressions.ToList();
+                if (es[0] is NameSegment funName) {
+                  var fun = FindMethod(program, funName.Name);
+                  var formals = fun.Ins;
+                  var args = es.Skip(1);
+                  Dictionary<IVariable, Expression> substMap =
+                    formals
+                    .Zip(args, (f, e) => new { f, e })
+                    .ToDictionary(pair => (IVariable)pair.f, pair => pair.e);
+                  Dictionary<TypeParameter, Type> typeMap = new Dictionary<TypeParameter, Type>();
+                  var sub = new Substituter(null/*TODO*/, substMap, typeMap);
+                  foreach (var postcondition in fun.Ens) {
+                    conditions.Add(sub.Substitute(postcondition.E).ToString());
+                  }
+                }
+              }
+            }
+          }
+        } else if (stmt is CallStmt callStmt) {
+          foreach (var e in callStmt.Method.Ens) {
+            conditions.Add(e.E.ToString());
+          }
         }
         // Additional handling can go here for other control flow constructs
       }
@@ -132,7 +184,7 @@ namespace Microsoft.Dafny {
     private IEnumerable<Statement> GetStatementsUpToLine(BlockStmt body, int? lineNumber) {
       // Example pseudo-code to collect all statements up to the specified line number
       var statements = new List<Statement>();
-      foreach (var stmt in body.Body) {
+      foreach (var stmt in body.SubStatements) {
         if (stmt.StartToken.line > lineNumber) { 
           break;
         }
