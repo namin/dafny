@@ -110,7 +110,13 @@ namespace Microsoft.Dafny {
       }
 
       // Step 2: Traverse statements leading up to the gap, adding conditions from invariants, branches, and assignments
-      foreach (var stmt in GetStatementsUpToLine(method.Body, lineNumber)) {
+      TraversePreGapStatements(method.Body, program, method, lineNumber, conditions);
+
+      return conditions;
+    }
+
+    private void TraversePreGapStatements(BlockStmt block, Program program, Method method, int? lineNumber, List<string> conditions) {
+      foreach (var stmt in GetStatementsUpToLine(block, lineNumber)) {
         Log("### Statement: " + stmt + " : " + stmt.GetType());
         if (stmt is WhileStmt whileStmt) {
           // Add loop invariant as a pre-gap condition if within the loop
@@ -120,8 +126,12 @@ namespace Microsoft.Dafny {
         } else if (stmt is IfStmt ifStmt) {
           if (ifStmt.Thn.StartToken.line <= lineNumber && lineNumber <= ifStmt.Thn.EndToken.line) {
             conditions.Add(ifStmt.Guard.ToString());
+            TraversePreGapStatements(ifStmt.Thn, program, method, lineNumber, conditions);
           } else if (ifStmt.Els.StartToken.line <= lineNumber && lineNumber <= ifStmt.Els.EndToken.line) {
             conditions.Add("!("+ifStmt.Guard.ToString()+")");
+            if (ifStmt.Els is BlockStmt elseBlock) {
+              TraversePreGapStatements(elseBlock, program, method, lineNumber, conditions);
+            }
           }
 
         } else if (stmt is AssignStatement aStmt) {
@@ -150,8 +160,6 @@ namespace Microsoft.Dafny {
         }
         // Additional handling can go here for other control flow constructs
       }
-
-      return conditions;
     }
 
     /// <summary>
