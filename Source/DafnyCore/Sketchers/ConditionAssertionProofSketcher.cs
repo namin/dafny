@@ -118,8 +118,12 @@ namespace Microsoft.Dafny {
             conditions.Add(inv.E.ToString());
           }
         } else if (stmt is IfStmt ifStmt) {
-          // Add conditions based on the true or false branch we are in
-          conditions.Add(ifStmt.Guard.ToString());
+          if (ifStmt.Thn.StartToken.line <= lineNumber && lineNumber <= ifStmt.Thn.EndToken.line) {
+            conditions.Add(ifStmt.Guard.ToString());
+          } else if (ifStmt.Els.StartToken.line <= lineNumber && lineNumber <= ifStmt.Els.EndToken.line) {
+            conditions.Add("!("+ifStmt.Guard.ToString()+")");
+          }
+
         } else if (stmt is AssignStatement aStmt) {
           foreach (var rhs in aStmt.Rhss) {
             foreach (var e in rhs.SubExpressions) {
