@@ -28,11 +28,17 @@ namespace Microsoft.Dafny {
         var name = "scratchpad";
         var lemma = "lemma " + name + "(" + string.Join(", ", parameters.Select(p => p.Item1 + ": " + p.Item2)) + ")" +
             string.Join('\n', requires.Select(x => "\nrequires " + x)) +
-            string.Join('\n', ensures.Select(x => "\nensures " + x)) +
-            "\n{}";
+            string.Join('\n', ensures.Select(x => "\nensures " + x));
         Log("### Verifier Lemma");
         Log(lemma);
-        return await RunVerifierScratchpad(context, lemma, name);
+        var contraCount = await RunVerifierScratchpad(context, lemma + "\n{assert false;}", name);
+        if (contraCount > 0) {
+            Log("#### No contradiction found");
+            return await RunVerifierScratchpad(context, lemma + "\n{}", name);
+        } else {
+            Log("#### Contradiction found");
+            return -1;
+        }
     }
 
     public static async Task<int> RunVerifierScratchpad(string context, string pad, string methodName = null) {
@@ -93,8 +99,8 @@ namespace Microsoft.Dafny {
 
     public static async Task<string> VerifyDafnyProgram(string programText, string methodName)
     {
-        Log("## Program to verify");
-        Log(programText);
+        //Log("## Program to verify");
+        //Log(programText);
         // Create a temporary file with the sketch content
         string tempFilePath = Path.GetTempFileName() + ".dfy";
         File.WriteAllText(tempFilePath, programText);
@@ -149,7 +155,9 @@ namespace Microsoft.Dafny {
             }
         }
 
-        Log("### Bad lines: " + string.Join(", ", lineNumbers));
+        if (lineNumbers.Count > 0) {
+            Log("### Bad lines: " + string.Join(", ", lineNumbers));
+        }
         return lineNumbers.Distinct().ToList();
     }
   }

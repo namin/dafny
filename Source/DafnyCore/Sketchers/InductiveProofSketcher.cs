@@ -96,7 +96,7 @@ namespace Microsoft.Dafny {
       return sb.ToString();
     }
 
-    private Dictionary<string, IVariable> ReverseMapForVarValues(Dictionary<IVariable, Expression> map)
+    public Dictionary<string, IVariable> ReverseMapForVarValues(Dictionary<IVariable, Expression> map)
     {
       var env = new Dictionary<string, IVariable>();
       foreach (var kvp in map) {
@@ -107,7 +107,7 @@ namespace Microsoft.Dafny {
       return env;
     }
 
-    private Dictionary<IVariable, Expression> MapFunctionParametersToArguments(Function function, FunctionCallExpr functionCallExpr) {
+    public Dictionary<IVariable, Expression> MapFunctionParametersToArguments(Function function, FunctionCallExpr functionCallExpr) {
         var map = new Dictionary<IVariable, Expression>();
 
         var parameters = function.Ins;
@@ -236,7 +236,7 @@ namespace Microsoft.Dafny {
         sb.AppendLine(");");
     }
 
-    private Expression SubstituteExpression(Expression expr, Dictionary<IVariable, Expression> map) {
+    public Expression SubstituteExpression(Expression expr, Dictionary<IVariable, Expression> map) {
         var substituter = new Substituter(null, map, new Dictionary<TypeParameter, Type>());
         return substituter.Substitute(expr);
     }

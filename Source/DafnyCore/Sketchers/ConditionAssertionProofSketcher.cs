@@ -140,7 +140,7 @@ namespace Microsoft.Dafny {
             conditions.Add(ifStmt.Guard);
             TraversePreGapStatements(ifStmt.Thn, program, method, lineNumber, conditions);
           } else if (ifStmt.Els.StartToken.line <= lineNumber && lineNumber <= ifStmt.Els.EndToken.line) {
-            conditions.Add(new NegationExpression(ifStmt.Guard.Origin, ifStmt.Guard));
+            conditions.Add(UnaryOpExpr.CreateNot(ifStmt.Guard.Origin, ifStmt.Guard));
             if (ifStmt.Els is BlockStmt elseBlock) {
               TraversePreGapStatements(elseBlock, program, method, lineNumber, conditions);
             }
