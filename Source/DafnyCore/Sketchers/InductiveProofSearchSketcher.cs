@@ -16,34 +16,35 @@ namespace Microsoft.Dafny {
       this.inductiveProofSketcher = new InductiveProofSketcher(reporter);
     }
 
-    public override Task<SketchResponse> GenerateSketch(SketchRequest input) {
-      return Task.FromResult(new SketchResponse(GenerateProofSketch(input.ResolvedProgram, input.Method, input.LineNumber)));
-    }
-    private string GenerateProofSketch(Program program, Method method, int? lineNumber) {
+    public override async Task<SketchResponse> GenerateSketch(SketchRequest input) {
+      Program program = input.ResolvedProgram;
+      Method method = input.Method;
+      int? lineNumber = input.LineNumber;
+      
       if (method == null) {
-        return "// Error: No method resolved.";
+        return new SketchResponse("// Error: No method resolved.");
       }
       string programText = PrintProgramToString(program);
       Log("## Program text");
       Log(programText);
       var lineNo = FindInsertionLine(programText, method);
       if (lineNo < 0) {
-        return "// Cannot find method";
+        return new SketchResponse("// Cannot find method");
       }
       var requiresCalls = inductiveProofSketcher.AllRequiresCalls(method).Select(item => item.Item1).Distinct().ToList();
       var vars = inductiveProofSketcher.FindInductionVariables(method).Distinct().ToList();
       var sketches = new List<(string, int)>();
       foreach (var requireCall in requiresCalls) {
-        considerSketch(sketches, programText, method.Name, lineNo,
+        await considerSketch(sketches, programText, method.Name, lineNo,
             inductiveProofSketcher.GenerateFunctionBasedInductionProofSketch(method, requireCall));
       }
       foreach (var inductionVar in vars) {
-        considerSketch(sketches, programText, method.Name, lineNo,
+        await considerSketch(sketches, programText, method.Name, lineNo,
             inductiveProofSketcher.BuildProofSketch(method, inductionVar));
       }
       var bestFirst = sketches.OrderBy(pair => pair.Item2).ToList();
       Log(string.Join("\n\n", bestFirst.Select(x => "// count " + x.Item2 + "\n" + x.Item1)));
-      return bestFirst.FirstOrDefault().Item1;
+      return new SketchResponse(bestFirst.FirstOrDefault().Item1);
     }
 
     private int FindInsertionLine(string programText, Method method)

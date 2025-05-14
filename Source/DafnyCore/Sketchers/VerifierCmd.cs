@@ -24,14 +24,12 @@ namespace Microsoft.Dafny {
           return allText;
     }
 
-    public static void considerSketch(List<(string, int)> sketches, string programText, string methodName, int lineNumber, string sketch) {
-        var count = VerifyCountErrors(programText, sketch, methodName, lineNumber);
+    public static async Task<int> considerSketch(List<(string, int)> sketches, string programText, string methodName, int lineNumber, string sketch) {
+        var sketchedProgram = InsertSketchAtLine(programText, sketch, lineNumber);
+        var output = await VerifyDafnyProgram(sketchedProgram, methodName);
+        var count = ParseErrorCount(output) ?? -1;
         sketches.Add((sketch, count));
-    }
-
-    public static int VerifyCountErrors(String program, string sketch, string methodName, int lineNumber) {
-        var sketchedProgram = InsertSketchAtLine(program, sketch, lineNumber);
-        return ParseErrorCount(VerifyDafnyProgramSync(sketchedProgram, methodName)) ?? -1;
+        return count;
     }
 
     public static string InsertSketchAtLine(string program, string sketch, int lineNumber)
@@ -71,14 +69,6 @@ namespace Microsoft.Dafny {
                 File.Delete(tempFilePath);
             }
         }
-    }
-
-    public static string VerifyDafnyProgramSync(string programText, string methodName)
-    {
-        // This will block the current thread until the task completes
-        // WARNING: Can cause deadlocks if the task depends on the current thread
-        Task<string> task = VerifyDafnyProgram(programText, methodName);
-        return task.Result;
     }
 
     public static async Task<string> VerifyDafnyProgram(string programText, string methodName)
