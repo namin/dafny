@@ -24,6 +24,26 @@ namespace Microsoft.Dafny {
           return allText;
     }
 
+    public static async Task<int> RunVerifierImplication(string context, List<(string,string)> parameters, List<string> requires, List<string> ensures) {
+        var name = "scratchpad";
+        var lemma = "lemma " + name + "(" + string.Join(", ", parameters.Select(p => p.Item1 + ": " + p.Item2)) + ")" +
+            string.Join('\n', requires.Select(x => "\nrequires " + x)) +
+            string.Join('\n', ensures.Select(x => "\nensures " + x)) +
+            "\n{}";
+        Log("### Verifier Lemma");
+        Log(lemma);
+        return await RunVerifierScratchpad(context, lemma, name);
+    }
+
+    public static async Task<int> RunVerifierScratchpad(string context, string pad, string methodName = null) {
+        var contextLineCount = context.Count(c => c == '\n');
+        var sketchedProgram = context + "\n" + pad;
+        var output = await VerifyDafnyProgram(sketchedProgram, methodName);
+        var badLines = FindBadLines(output);
+        var count = badLines.FindAll(x => x > contextLineCount).Distinct().Count();
+        return count;
+    }
+
     public static async Task<int> considerSketch(List<(string, int)> sketches, string programText, string methodName, int lineNumber, string sketch) {
         var sketchedProgram = InsertSketchAtLine(programText, sketch, lineNumber);
         var output = await VerifyDafnyProgram(sketchedProgram, methodName);

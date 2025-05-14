@@ -10,7 +10,7 @@ namespace Microsoft.Dafny {
     public ConditionAssertionProofSketcher(ErrorReporter reporter) : base(reporter) { }
 
     public override Task<SketchResponse> GenerateSketch(SketchRequest input) {
-      return Task.FromResult(new SketchResponse(GenerateProofSketch(input.ResolvedProgram, input.Method, input.LineNumber)));
+      return Task.FromResult(new SketchResponse(GenerateProofSketch(input.ResolvedProgram, input.Method, input.LineNumber, input.Indent)));
     }
     /// <summary>
     /// Generates explicit assertions for implicit conditions at a given gap in the method.
@@ -18,25 +18,18 @@ namespace Microsoft.Dafny {
     /// <param name="method">The method containing the gap.</param>
     /// <param name="lineNumber">The line number of the gap.</param>
     /// <returns>A string containing assertions for implicit conditions.</returns>
-    private string GenerateProofSketch(Program program, Method? maybeMethod, int? maybeLineNumber) {
-      var method = maybeMethod;
-      var lineNumber = maybeLineNumber;
-      if (maybeMethod is null) {
-        if (lineNumber is null) {
-          return "// Missing position info";
-        }
-        method = maybeMethod ?? FindMethodFromLine(program, lineNumber.Value);
+    private string GenerateProofSketch(Program program, Method? maybeMethod, int? maybeLineNumber, int? maybeIndent) {
+      var (method, lineNumber) = ClarifyMethodAndLine(program, maybeMethod, maybeLineNumber);
+      if (method == null) {
+        return "// Error: No method resolved.";
       }
-      if (method is null) {
-        return "// Cannot find method";
-      }
-      if (lineNumber is null) {
-        lineNumber = method.StartToken.line + 1;
+      if (lineNumber == null) {
+        return "// Error: No line number resolved.";
       }
       var sb = new StringBuilder();
       sb.AppendLine("");
 
-      var s = 2; // TODO: infer from gap location
+      var s = (maybeIndent ?? 8) / 4;
       
       sb.AppendLine($"{Indent(s)}// Pre-gap conditions");
       foreach (var condition in CollectPreGapConditions(program, method, lineNumber)) {
@@ -53,6 +46,23 @@ namespace Microsoft.Dafny {
       return sb.ToString();
     }
 
+    public (Method, int?) ClarifyMethodAndLine(Program program, Method? maybeMethod, int? maybeLineNumber) {
+      var method = maybeMethod;
+      var lineNumber = maybeLineNumber;
+      if (maybeMethod is null) {
+        if (lineNumber is null) {
+          return (null, null);
+        }
+        method = maybeMethod ?? FindMethodFromLine(program, lineNumber.Value);
+      }
+      if (method is null) {
+        return (null, lineNumber);
+      }
+      if (lineNumber is null) {
+        lineNumber = method.StartToken.line + 1;
+      }
+      return (method, lineNumber);
+    }
     // TODO: this should be more generally available.
     private Method FindMethodFromLine(Program program, int lineNumber) {
       //Log("# Getting Method");
@@ -102,13 +112,13 @@ namespace Microsoft.Dafny {
     /// <summary>
     /// Collects pre-gap conditions based on control flow up to a specified line.
     /// </summary>
-    private List<string> CollectPreGapConditions(Program program, Method method, int? lineNumber) {
+    public List<Expression> CollectPreGapConditions(Program program, Method method, int? lineNumber) {
       Log("## Pre-gap conditions");
-      var conditions = new List<string>();
+      var conditions = new List<Expression>();
 
       // Step 1: Add method preconditions
       foreach (var precond in method.Req) {
-        conditions.Add(precond.E.ToString());
+        conditions.Add(precond.E);
       }
 
       // Step 2: Traverse statements leading up to the gap, adding conditions from invariants, branches, and assignments
@@ -117,20 +127,20 @@ namespace Microsoft.Dafny {
       return conditions;
     }
 
-    private void TraversePreGapStatements(BlockStmt block, Program program, Method method, int? lineNumber, List<string> conditions) {
+    private void TraversePreGapStatements(BlockStmt block, Program program, Method method, int? lineNumber, List<Expression> conditions) {
       foreach (var stmt in GetStatementsUpToLine(block, lineNumber)) {
         Log("### Statement: " + stmt + " : " + stmt.GetType());
         if (stmt is WhileStmt whileStmt) {
           // Add loop invariant as a pre-gap condition if within the loop
           foreach (var inv in whileStmt.Invariants) {
-            conditions.Add(inv.E.ToString());
+            conditions.Add(inv.E);
           }
         } else if (stmt is IfStmt ifStmt) {
           if (ifStmt.Thn.StartToken.line <= lineNumber && lineNumber <= ifStmt.Thn.EndToken.line) {
-            conditions.Add(ifStmt.Guard.ToString());
+            conditions.Add(ifStmt.Guard);
             TraversePreGapStatements(ifStmt.Thn, program, method, lineNumber, conditions);
           } else if (ifStmt.Els.StartToken.line <= lineNumber && lineNumber <= ifStmt.Els.EndToken.line) {
-            conditions.Add("!("+ifStmt.Guard.ToString()+")");
+            conditions.Add(new NegationExpression(ifStmt.Guard.Origin, ifStmt.Guard));
             if (ifStmt.Els is BlockStmt elseBlock) {
               TraversePreGapStatements(elseBlock, program, method, lineNumber, conditions);
             }
@@ -153,7 +163,7 @@ namespace Microsoft.Dafny {
                   Dictionary<TypeParameter, Type> typeMap = new Dictionary<TypeParameter, Type>();
                   var sub = new Substituter(null/*TODO*/, substMap, typeMap);
                   foreach (var postcondition in fun.Ens) {
-                    conditions.Add(sub.Substitute(postcondition.E).ToString());
+                    conditions.Add(sub.Substitute(postcondition.E));
                   }
                 }
               }
@@ -167,19 +177,19 @@ namespace Microsoft.Dafny {
     /// <summary>
     /// Collects post-gap goals based on following assertions and method postconditions.
     /// </summary>
-    private List<string> CollectPostGapGoals(Method method, int? lineNumber) {
-      var goals = new List<string>();
+    public List<Expression> CollectPostGapGoals(Method method, int? lineNumber) {
+      var goals = new List<Expression>();
 
       // Step 1: Add method postconditions if near the end of the method
       foreach (var postcond in method.Ens) {
-        goals.Add(postcond.E.ToString());
+        goals.Add(postcond.E);
       }
 
       // Step 2: If gap is in a loop, add the invariant as a goal
       var followingStmt = GetStatementAfterLine(method.Body, lineNumber);
       if (followingStmt is WhileStmt whileStmt) {
         foreach (var inv in whileStmt.Invariants) {
-          goals.Add(inv.E.ToString());
+          goals.Add(inv.E);
         }
       }
 
