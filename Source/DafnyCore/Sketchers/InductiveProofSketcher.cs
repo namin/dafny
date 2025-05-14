@@ -190,7 +190,7 @@ namespace Microsoft.Dafny {
 
         return variables;
     }
-    private Dictionary<IVariable, Expression> ExtractVariables(LetExpr letExpr) {
+    public Dictionary<IVariable, Expression> ExtractVariables(LetExpr letExpr) {
         var variableMap = new Dictionary<IVariable, Expression>();
 
         for (int i = 0; i < letExpr.LHSs.Count; i++) {

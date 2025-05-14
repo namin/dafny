@@ -69,7 +69,17 @@ namespace Microsoft.Dafny {
         } else if (expr is NestedMatchExpr matchExpr) {
             Log("## NestedMatchExpr TODO: " + matchExpr);
         } else if (expr is LetExpr letExpr) {
-            Log("### LetExpr TODO: " + letExpr);
+            Log("## LetExpr (ignoring): " + letExpr);
+            // This could work but slows down the process a lot.
+            /*
+            var variableMap = inductiveSketcher.ExtractVariables(letExpr);
+            var extendedEnv = new Dictionary<string, IVariable>(env);
+            foreach (var kvp in variableMap) {
+                extendedEnv[kvp.Key.Name] = kvp.Key;
+            }
+            var substitutedBody = inductiveSketcher.SubstituteExpression(letExpr.Body, variableMap);
+            await FollowExpr(substitutedBody, followedFunction, functionCallExpr, extendedEnv, parameters, context, requires, path, inferredConditions);
+            */
         } else if (expr.Type.ToString() == functionCallExpr.Type.ToString()) {
             var eqExpr = BinaryExpr.CreateEq(functionCallExpr, expr, functionCallExpr.Type);
             var pathRequires = path.Select(e => e.ToString()).ToList();
