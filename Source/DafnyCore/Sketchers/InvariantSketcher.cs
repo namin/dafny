@@ -18,7 +18,6 @@ namespace Microsoft.Dafny {
     }
 
     // TODO: extend the interface of ProofSketcher so this can be included?
-    // TODO: if we had character position too, we could indent the resulting sketch properly.
     public virtual async Task<SketchResponse> GenerateSketch(SketchRequest input) {
         var content = input.Content;
         var response = await sketcher.GenerateSketch(input.withPrompt("Find the program invariants. List all potential invariants in a Dafny code block, one per line."));
@@ -28,12 +27,13 @@ namespace Microsoft.Dafny {
         var badLines = FindBadLines(output); // TODO: we might want to also consider each invariant separately?
         var keptSuggestions = suggestions.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
         for (int i=0; i<keptSuggestions.Length; i++) {
+            keptSuggestions[i] = keptSuggestions[i].Trim();
             if (badLines.Contains(1 + i + input.LineNumber.Value)) {
                 Log("### Bad lines contain " + keptSuggestions[i]);
                 keptSuggestions[i] = "// " + keptSuggestions[i];
             }
         }
-        var sketch = string.Join("\n", keptSuggestions);;
+        var sketch = string.Join("\n" + new string(' ', input.Indent ?? 0), keptSuggestions);;
         return new SketchResponse(sketch);
     }
   }

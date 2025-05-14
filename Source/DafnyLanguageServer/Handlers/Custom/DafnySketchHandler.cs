@@ -35,7 +35,7 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
             var sketcher = ISketcher.Create(request.SketchType, reporter);
             if (sketcher != null) {
               return await sketcher.GenerateSketch(new SketchRequest(
-                resolvedProgram, request.Content, method, request.SketchType, request.Position.Line, request.Prompt));
+                resolvedProgram, request.Content, method, request.SketchType, request.Position.Line, request.Position.Character, request.Prompt));
             } else if (request.SketchType.StartsWith("error")) {
               var diagnostics = state.GetAllDiagnostics();
               var methodDiagnostics = diagnostics
