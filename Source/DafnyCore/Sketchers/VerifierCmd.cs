@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 using static Microsoft.Dafny.DafnyLogger;
+using System.Linq;
 
 namespace Microsoft.Dafny {
   class VerifierCmd {
@@ -30,7 +31,7 @@ namespace Microsoft.Dafny {
 
     public static int VerifyCountErrors(String program, string sketch, string methodName, int lineNumber) {
         var sketchedProgram = InsertSketchAtLine(program, sketch, lineNumber);
-        return VerifyDafnyProgramSync(sketchedProgram, methodName);
+        return ParseErrorCount(VerifyDafnyProgramSync(sketchedProgram, methodName)) ?? -1;
     }
 
     public static string InsertSketchAtLine(string program, string sketch, int lineNumber)
@@ -72,15 +73,15 @@ namespace Microsoft.Dafny {
         }
     }
 
-    public static int VerifyDafnyProgramSync(string programText, string methodName)
+    public static string VerifyDafnyProgramSync(string programText, string methodName)
     {
         // This will block the current thread until the task completes
         // WARNING: Can cause deadlocks if the task depends on the current thread
-        Task<int> task = VerifyDafnyProgram(programText, methodName);
+        Task<string> task = VerifyDafnyProgram(programText, methodName);
         return task.Result;
     }
 
-    public static async Task<int> VerifyDafnyProgram(string programText, string methodName)
+    public static async Task<string> VerifyDafnyProgram(string programText, string methodName)
     {
         Log("## Program to verify");
         Log(programText);
@@ -92,7 +93,7 @@ namespace Microsoft.Dafny {
             var text = await VerifierCmd.RunVerifier(tempFilePath, "--filter-symbol " + methodName);
             Log("### Verifier output");
             Log(text);
-            return ParseErrorCount(text) ?? -1;
+            return text;
         }
         finally
         {
@@ -121,6 +122,25 @@ namespace Microsoft.Dafny {
         {
             return null;
         }
+    }
+
+    public static List<int> FindBadLines(string input)
+    {
+        string pattern = @"\((\d+),\d+\): Error:";
+
+        MatchCollection matches = Regex.Matches(input, pattern);
+        List<int> lineNumbers = new List<int>();
+
+        foreach (Match match in matches)
+        {
+            if (int.TryParse(match.Groups[1].Value, out int number))
+            {
+                lineNumbers.Add(number);
+            }
+        }
+
+        Log("### Bad lines: " + string.Join(", ", lineNumbers));
+        return lineNumbers.Distinct().ToList();
     }
   }
 }

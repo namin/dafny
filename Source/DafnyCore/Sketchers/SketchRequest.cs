@@ -19,5 +19,10 @@ namespace Microsoft.Dafny {
             Prompt = prompt;
             AdditionalData = additionalData ?? new Dictionary<string, object>();
         }
+
+        public SketchRequest withPrompt(string newPrompt)
+        {
+            return new SketchRequest(ResolvedProgram, Content, Method, SketchType, LineNumber, newPrompt);
+        }
     }
 }
