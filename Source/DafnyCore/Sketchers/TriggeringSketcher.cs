@@ -1,10 +1,8 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Microsoft.Boogie.SMTLib;
+using System.Threading.Tasks;
 using Microsoft.Dafny;
-using RAST;
 
 namespace Microsoft.Dafny {
   /// <summary>
@@ -37,7 +35,10 @@ namespace Microsoft.Dafny {
       this.reporter = reporter;
     }
 
-    public override string GenerateProofSketch(Program program, Method method, int? lineNumber) {
+    public override Task<SketchResponse> GenerateSketch(SketchRequest input) {
+      return Task.FromResult(new SketchResponse(GenerateProofSketch(input.ResolvedProgram, input.Method, input.LineNumber)));
+    }
+    private string GenerateProofSketch(Program program, Method method, int? lineNumber) {
       // Find relevant quantifiers near the verification failure
       var quantifiers = FindRelevantQuantifiers(method, lineNumber);
       if (quantifiers.Count == 0) {
@@ -222,9 +223,9 @@ namespace Microsoft.Dafny {
 
     private bool IsValidTriggerExpr(Expression expr, HashSet<IVariable> boundVars) {
       // Basic trigger validity rules
-      if (expr is null) return false;
-      if (expr is QuantifierExpr) return false;  // No nested quantifiers
-      if (expr is LiteralExpr) return false;     // No literals
+      if (expr is null) { return false; }
+      if (expr is QuantifierExpr) { return false; } // No nested quantifiers
+      if (expr is LiteralExpr) { return false; }    // No literals
       if (expr is BinaryExpr binary) {
         switch (binary.Op) {
           case BinaryExpr.Opcode.Imp:     // Only exclude implications

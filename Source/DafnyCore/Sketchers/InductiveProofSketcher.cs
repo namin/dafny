@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using Microsoft.Dafny;
 
 namespace Microsoft.Dafny {
@@ -13,7 +14,10 @@ namespace Microsoft.Dafny {
       this.reporter = reporter;
     }
 
-    public override string GenerateProofSketch(Program program, Method method, int? lineNumber) {
+    public override Task<SketchResponse> GenerateSketch(SketchRequest input) {
+      return Task.FromResult(new SketchResponse(GenerateProofSketch(input.ResolvedProgram, input.Method, input.LineNumber)));
+    }
+    private string GenerateProofSketch(Program program, Method method, int? lineNumber) {
       if (method == null) {
         return "// Error: No method resolved.";
       }

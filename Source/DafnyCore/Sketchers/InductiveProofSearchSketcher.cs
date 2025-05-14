@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using static Microsoft.Dafny.DafnyLogger;
 using static Microsoft.Dafny.VerifierCmd;
 
@@ -15,7 +16,10 @@ namespace Microsoft.Dafny {
       this.inductiveProofSketcher = new InductiveProofSketcher(reporter);
     }
 
-    public override string GenerateProofSketch(Program program, Method method, int? lineNumber) {
+    public override Task<SketchResponse> GenerateSketch(SketchRequest input) {
+      return Task.FromResult(new SketchResponse(GenerateProofSketch(input.ResolvedProgram, input.Method, input.LineNumber)));
+    }
+    private string GenerateProofSketch(Program program, Method method, int? lineNumber) {
       if (method == null) {
         return "// Error: No method resolved.";
       }

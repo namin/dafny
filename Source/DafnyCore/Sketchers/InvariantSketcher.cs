@@ -8,17 +8,17 @@ using static Microsoft.Dafny.VerifierCmd;
 
 namespace Microsoft.Dafny {
 
-  public class InvariantSketcher : ISketcher {
+  public class InvariantSketcher : ProofSketcher {
     private readonly ErrorReporter reporter;
     private readonly LLMSketcher sketcher;
 
-    public InvariantSketcher(ErrorReporter reporter) {
+    public InvariantSketcher(ErrorReporter reporter): base(reporter) {
       this.reporter = reporter;
       this.sketcher = new LLMSketcher(false/*abbrev*/, reporter);
     }
 
     // TODO: extend the interface of ProofSketcher so this can be included?
-    public virtual async Task<SketchResponse> GenerateSketch(SketchRequest input) {
+    public override async Task<SketchResponse> GenerateSketch(SketchRequest input) {
         var content = input.Content;
         var response = await sketcher.GenerateSketch(input.withPrompt("Find the program invariants. List all potential invariants in a Dafny code block, one per line."));
         var suggestions = response.Sketch;

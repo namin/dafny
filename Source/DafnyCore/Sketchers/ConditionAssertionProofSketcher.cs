@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading.Tasks;
 using static Microsoft.Dafny.DafnyLogger;
 
 
@@ -10,13 +9,16 @@ namespace Microsoft.Dafny {
   public class ConditionAssertionProofSketcher : ProofSketcher {
     public ConditionAssertionProofSketcher(ErrorReporter reporter) : base(reporter) { }
 
+    public override Task<SketchResponse> GenerateSketch(SketchRequest input) {
+      return Task.FromResult(new SketchResponse(GenerateProofSketch(input.ResolvedProgram, input.Method, input.LineNumber)));
+    }
     /// <summary>
     /// Generates explicit assertions for implicit conditions at a given gap in the method.
     /// </summary>
     /// <param name="method">The method containing the gap.</param>
     /// <param name="lineNumber">The line number of the gap.</param>
     /// <returns>A string containing assertions for implicit conditions.</returns>
-    override public string GenerateProofSketch(Program program, Method? maybeMethod, int? maybeLineNumber) {
+    private string GenerateProofSketch(Program program, Method? maybeMethod, int? maybeLineNumber) {
       var method = maybeMethod;
       var lineNumber = maybeLineNumber;
       if (maybeMethod is null) {

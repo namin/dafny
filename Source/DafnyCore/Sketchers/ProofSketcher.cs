@@ -5,11 +5,8 @@ namespace Microsoft.Dafny;
 public abstract class ProofSketcher : InductionRewriter, ISketcher {
   public ProofSketcher(ErrorReporter reporter) : base(reporter) {
   }
-  public Task<SketchResponse> GenerateSketch(SketchRequest input) {
-    return Task.FromResult(new SketchResponse(GenerateProofSketch(input.ResolvedProgram, input.Method, input.LineNumber)));
-  }
-  public abstract string GenerateProofSketch(Program program, Method method, int? lineNumber);
-  public static readonly List<string> Types = new List<string> { "induction", "induction_search", "assertions", "call_lemma" };
+  public abstract Task<SketchResponse> GenerateSketch(SketchRequest input);
+  public static readonly List<string> Types = new List<string> { "induction", "induction_search", "invariants", "assertions", "call_lemma" };
 
   public static ProofSketcher? Create(string sketchType, ErrorReporter reporter)
   {
@@ -18,6 +15,8 @@ public abstract class ProofSketcher : InductionRewriter, ISketcher {
         return new InductiveProofSketcher(reporter);
       case "induction_search":
         return new InductiveProofSearchSketcher(reporter);
+      case "invariants":
+        return new InvariantSketcher(reporter);
       case "assertions":
         return new ConditionAssertionProofSketcher(reporter);
       case "call_lemma":

@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
-using DAST;
-using Microsoft.Boogie.SMTLib;
+using System.Threading.Tasks;
 
 namespace Microsoft.Dafny {
     public class LemmaCallSketcher : ProofSketcher {
@@ -15,7 +14,10 @@ namespace Microsoft.Dafny {
             Reporter.Error(MessageSource.Documentation, tok, msg); // TODO: seems like a no-op?
         }
     
-        public override string GenerateProofSketch(Program program, Method method, int? lineNumber) {
+        public override Task<SketchResponse> GenerateSketch(SketchRequest input) {
+            return Task.FromResult(new SketchResponse(GenerateProofSketch(input.ResolvedProgram, input.Method, input.LineNumber)));
+        }
+        private string GenerateProofSketch(Program program, Method method, int? lineNumber) {
             var sketchBuilder = new StringBuilder();
             this.sb = sketchBuilder;
 
