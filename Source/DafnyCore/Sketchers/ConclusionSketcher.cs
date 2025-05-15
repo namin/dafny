@@ -68,23 +68,33 @@ namespace Microsoft.Dafny {
             await FollowExpr(iteExpr.Thn, followedFunction, functionCallExpr, env, parameters, context, requires, path.Concat(new List<Expression> { test }).ToList(), inferredConditions);
             await FollowExpr(iteExpr.Els, followedFunction, functionCallExpr, env, parameters, context, requires, path.Concat(new List<Expression> { UnaryOpExpr.CreateNot(test.Origin, test) }).ToList(), inferredConditions);
         } else if (expr is NestedMatchExpr nestedMatchExpr) {
-            Log("## NestedMatchExpr (ignoring): " + nestedMatchExpr);
-            /*
+            Log("## NestedMatchExpr: " + nestedMatchExpr);
             var source = nestedMatchExpr.Source;
             foreach (var caseStmt in nestedMatchExpr.Cases) {
                 var pattern = caseStmt.Pat;
                 if (pattern is IdPattern idPattern && idPattern.Ctor != null) {
-                    var variables = inductiveSketcher.ExtractVariables(caseStmt);
+                    var variables = idPattern.Arguments.Select(p => p as IdPattern).Where(p => p != null).Select(p => p.BoundVar).ToList();
+                    Log("### idPattern: " + idPattern);
+                    Log("### variables: " + string.Join(", ", variables.Select(v => v.Name)));
                     var extendedEnv = inductiveSketcher.ExtendEnvironment(env, variables);
-                    var arguments = idPattern.Ctor.Formals.Select(p => (Expression)new MemberSelectExpr(p.Origin, source, p.NameNode));
-                    var map = variables.Zip(arguments).ToDictionary();
+                    var ctorPredicate = new Name(idPattern.Ctor.Name+"?");
+                    var predicate = new ExprDotName(source.Origin, source, ctorPredicate, null);
+                    predicate.Type = new BoolType();
+                    var extendedPath = path.Concat(new List<Expression> { predicate }).ToList();
+                    var arguments = idPattern.Ctor.Formals.Select(p => {
+                        var e = (Expression)new ExprDotName(source.Origin, source, p.NameNode, null);
+                        e.Type = p.Type;
+                        return e;
+                    });
+                    Log("### arguments: " + string.Join(", ", arguments.Select(a => a.ToString())));
+                    var map = idPattern.Arguments.Zip(arguments).Select(p =>
+                        p.Item1 is IdPattern vid ? (vid.BoundVar, p.Item2) : (null, null)).Where(p => p.Item1 != null).ToDictionary();
                     var substBody = inductiveSketcher.SubstituteExpression(caseStmt.Body, map);
-                    await FollowExpr(substBody, followedFunction, functionCallExpr, extendedEnv, parameters, context, requires, path, inferredConditions);
+                    await FollowExpr(substBody, followedFunction, functionCallExpr, extendedEnv, parameters, context, requires, extendedPath, inferredConditions);
                 } else {
                     Log("### Not IdPattern " + pattern);
                 }
              }
-             */
         } else if (expr is LetExpr letExpr) {
             Log("## LetExpr (ignoring): " + letExpr);
             // This could work but slows down the process a lot.
