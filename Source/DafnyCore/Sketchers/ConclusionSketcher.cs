@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Boogie;
+using Microsoft.Dafny.Triggers;
 using static Microsoft.Dafny.DafnyLogger;
 using static Microsoft.Dafny.VerifierCmd;
 
@@ -69,6 +70,7 @@ namespace Microsoft.Dafny {
             await FollowExpr(iteExpr.Els, followedFunction, functionCallExpr, env, parameters, context, requires, path.Concat(new List<Expression> { UnaryOpExpr.CreateNot(test.Origin, test) }).ToList(), inferredConditions);
         } else if (expr is NestedMatchExpr nestedMatchExpr) {
             Log("## NestedMatchExpr: " + nestedMatchExpr);
+            /*
             var source = nestedMatchExpr.Source;
             foreach (var caseStmt in nestedMatchExpr.Cases) {
                 var pattern = caseStmt.Pat;
@@ -95,17 +97,11 @@ namespace Microsoft.Dafny {
                     Log("### Not IdPattern " + pattern);
                 }
              }
+            */
         } else if (expr is LetExpr letExpr) {
-            Log("## LetExpr (ignoring): " + letExpr);
-            // This could work but slows down the process a lot.
+            Log("## LetExpr: " + letExpr);
             /*
-            var variableMap = inductiveSketcher.ExtractVariables(letExpr);
-            var extendedEnv = new Dictionary<string, IVariable>(env);
-            foreach (var kvp in variableMap) {
-                extendedEnv[kvp.Key.Name] = kvp.Key;
-            }
-            var substitutedBody = inductiveSketcher.SubstituteExpression(letExpr.Body, variableMap);
-            await FollowExpr(substitutedBody, followedFunction, functionCallExpr, extendedEnv, parameters, context, requires, path, inferredConditions);
+            await FollowExpr(BoogieGenerator.InlineLet(letExpr), followedFunction, functionCallExpr, env, parameters, context, requires, path, inferredConditions);
             */
         } else if (expr.Type.ToString() == functionCallExpr.Type.ToString()) {
             var eqExpr = BinaryExpr.CreateEq(functionCallExpr, expr, functionCallExpr.Type);
