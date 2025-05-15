@@ -2,26 +2,33 @@ using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Boogie;
-using Microsoft.Dafny.Triggers;
 using static Microsoft.Dafny.DafnyLogger;
 using static Microsoft.Dafny.VerifierCmd;
 
 namespace Microsoft.Dafny {
   public class ConclusionSketcher : ProofSketcher {
+    private readonly ErrorReporter reporter;
     private readonly ConditionAssertionProofSketcher conditionSketcher;
     private readonly InductiveProofSketcher inductiveSketcher;
     public ConclusionSketcher(ErrorReporter reporter) : base(reporter) {
-      conditionSketcher = new ConditionAssertionProofSketcher(reporter);
-      inductiveSketcher = new InductiveProofSketcher(reporter);
+        this.reporter = reporter;
+        conditionSketcher = new ConditionAssertionProofSketcher(reporter);
+        inductiveSketcher = new InductiveProofSketcher(reporter);
     }
 
     public override async Task<SketchResponse> GenerateSketch(SketchRequest input) {
         var program = input.ResolvedProgram;
         var (method, lineNumber) = conditionSketcher.ClarifyMethodAndLine(program, input.Method, input.LineNumber);
-        var resolver = new ModuleResolver(new ProgramResolver(program), Reporter.Options);
-        var resolutionContext = ResolutionContext.FromCodeContext(method);
+        var programResolver = new ProgramResolver(program);
+        var resolver = new ModuleResolver(programResolver, program.DefaultModule.Options);
+        foreach (var t in program.DefaultModuleDef.TopLevelDecls) {
+            if (t is TopLevelDeclWithMembers tm) {
+                resolver.AddClassMembers(tm, tm.Members.ToDictionary(m => m.Name, m => m));
+            }
+        }
+        var resolutionContext = new ResolutionContext(method, true);
         var conditions = conditionSketcher.CollectPreGapConditions(program, method, lineNumber);
         var freeVars = conditions.SelectMany(c => FreeVariablesUtil.ComputeFreeVariables(Reporter.Options, c).ToList()).Distinct().ToList();
         var parameters = freeVars.Select(v => (v.Name, v.Type.ToString())).ToList();
@@ -83,21 +90,18 @@ namespace Microsoft.Dafny {
                     Log("### number of arguments: " + idPattern.Arguments.Count);
                     var extendedEnv = inductiveSketcher.ExtendEnvironment(env, variables);
                     var ctorPredicate = new Name(idPattern.Ctor.Name+"?");
-                    var predicate = new ExprDotName(source.Origin, source, ctorPredicate, null) {
-                        Type = new BoolType()
-                    };
+                    var predicate = new ExprDotName(source.Origin, source, ctorPredicate, null);
                     resolver.ResolveExpression(predicate, resolutionContext);
                     var extendedPath = path.Concat(new List<Expression> { predicate }).ToList();
                     var arguments = idPattern.Ctor.Formals.Select(p => {
-                        var e = new ExprDotName(source.Origin, source, p.NameNode, null) {
-                            Type = p.Type
-                        };
+                        var e = new ExprDotName(source.Origin, new Cloner().CloneExpr(source), p.NameNode, null);
                         resolver.ResolveExpression(e, resolutionContext);
                         return e;
                     });
                     Log("### arguments: " + string.Join(", ", arguments.Select(a => a.ToString())));
                     var map = idPattern.Arguments.Zip(arguments).Select(p => {
                         if (p.Item1 is IdPattern vid) {
+                            Contract.Assert(p.Item2.ResolvedExpression != null, "Expected resolved expression " + p.Item2);
                             return (vid.BoundVar, (Expression)p.Item2);
                         } else {
                             return (null, null);
