@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Boogie;
 using static Microsoft.Dafny.DafnyLogger;
 using static Microsoft.Dafny.VerifierCmd;
 
@@ -66,8 +67,24 @@ namespace Microsoft.Dafny {
             var test = iteExpr.Test;
             await FollowExpr(iteExpr.Thn, followedFunction, functionCallExpr, env, parameters, context, requires, path.Concat(new List<Expression> { test }).ToList(), inferredConditions);
             await FollowExpr(iteExpr.Els, followedFunction, functionCallExpr, env, parameters, context, requires, path.Concat(new List<Expression> { UnaryOpExpr.CreateNot(test.Origin, test) }).ToList(), inferredConditions);
-        } else if (expr is NestedMatchExpr matchExpr) {
-            Log("## NestedMatchExpr TODO: " + matchExpr);
+        } else if (expr is NestedMatchExpr nestedMatchExpr) {
+            Log("## NestedMatchExpr (ignoring): " + nestedMatchExpr);
+            /*
+            var source = nestedMatchExpr.Source;
+            foreach (var caseStmt in nestedMatchExpr.Cases) {
+                var pattern = caseStmt.Pat;
+                if (pattern is IdPattern idPattern && idPattern.Ctor != null) {
+                    var variables = inductiveSketcher.ExtractVariables(caseStmt);
+                    var extendedEnv = inductiveSketcher.ExtendEnvironment(env, variables);
+                    var arguments = idPattern.Ctor.Formals.Select(p => (Expression)new MemberSelectExpr(p.Origin, source, p.NameNode));
+                    var map = variables.Zip(arguments).ToDictionary();
+                    var substBody = inductiveSketcher.SubstituteExpression(caseStmt.Body, map);
+                    await FollowExpr(substBody, followedFunction, functionCallExpr, extendedEnv, parameters, context, requires, path, inferredConditions);
+                } else {
+                    Log("### Not IdPattern " + pattern);
+                }
+             }
+             */
         } else if (expr is LetExpr letExpr) {
             Log("## LetExpr (ignoring): " + letExpr);
             // This could work but slows down the process a lot.

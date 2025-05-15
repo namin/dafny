@@ -173,7 +173,7 @@ namespace Microsoft.Dafny {
         }
     }
   
-    private string ExtractPattern(NestedMatchCaseExpr caseExpr) {
+    public string ExtractPattern(NestedMatchCaseExpr caseExpr) {
         if (caseExpr.Pat != null) {
             // Convert the pattern into a readable form
             return caseExpr.Pat.ToString();
@@ -181,7 +181,7 @@ namespace Microsoft.Dafny {
         return "<unknown-pattern>";
     }
 
-    private List<IVariable> ExtractVariables(NestedMatchCaseExpr caseExpr) {
+    public List<IVariable> ExtractVariables(NestedMatchCaseExpr caseExpr) {
         var variables = new List<IVariable>();
 
         if (caseExpr.Pat is IdPattern idPattern && idPattern.BoundVar != null) {
@@ -206,7 +206,7 @@ namespace Microsoft.Dafny {
         return variableMap;
     }
 
-    private Dictionary<string, IVariable> ExtendEnvironment(Dictionary<string, IVariable> env, List<IVariable> caseVars) {
+    public Dictionary<string, IVariable> ExtendEnvironment(Dictionary<string, IVariable> env, List<IVariable> caseVars) {
         var newEnv = new Dictionary<string, IVariable>(env);
         foreach (var variable in caseVars) {
             newEnv[variable.Name] = variable;
