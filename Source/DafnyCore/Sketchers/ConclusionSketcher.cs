@@ -21,7 +21,14 @@ namespace Microsoft.Dafny {
     public override async Task<SketchResponse> GenerateSketch(SketchRequest input) {
         var program = input.ResolvedProgram;
         var (method, lineNumber) = conditionSketcher.ClarifyMethodAndLine(program, input.Method, input.LineNumber);
-        var resolver = program.ModuleResolver;
+        var programResolver = new ProgramResolver(program);
+        var resolver = new ModuleResolver(programResolver, program.Options);
+        resolver.moduleInfo = program.SystemModuleManager.systemNameInfo;
+        foreach (var t in program.DefaultModuleDef.TopLevelDecls) {
+            if (t is TopLevelDeclWithMembers tm) {
+                resolver.AddClassMembers(tm, tm.Members.ToDictionary(m => m.Name, m => m));
+            }
+        }
         var resolutionContext = new ResolutionContext(method, true);
         var conditions = conditionSketcher.CollectPreGapConditions(program, method, lineNumber);
         var freeVars = conditions.SelectMany(c => FreeVariablesUtil.ComputeFreeVariables(Reporter.Options, c).ToList()).Distinct().ToList();

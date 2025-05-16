@@ -136,7 +136,6 @@ public class ProgramResolver {
 
   protected virtual Dictionary<TopLevelDeclWithMembers, Dictionary<string, MemberDecl>> ResolveSystemModule(Program program) {
     var systemModuleResolver = new ModuleResolver(this, Options);
-    Program.ModuleResolver = systemModuleResolver;
 
     SystemModuleManager.systemNameInfo = SystemModuleManager.SystemModule.RegisterTopLevelDecls(systemModuleResolver, false);
     systemModuleResolver.moduleInfo = SystemModuleManager.systemNameInfo;

@@ -7,8 +7,6 @@ using Microsoft.Dafny.Auditor;
 namespace Microsoft.Dafny;
 
 public class Program : NodeWithoutOrigin {
-  public ModuleResolver ModuleResolver { get; set; }
-
   public CompilationData Compilation { get; }
 
   [ContractInvariantMethod]
