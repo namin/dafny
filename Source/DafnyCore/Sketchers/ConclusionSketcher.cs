@@ -21,13 +21,7 @@ namespace Microsoft.Dafny {
     public override async Task<SketchResponse> GenerateSketch(SketchRequest input) {
         var program = input.ResolvedProgram;
         var (method, lineNumber) = conditionSketcher.ClarifyMethodAndLine(program, input.Method, input.LineNumber);
-        var programResolver = new ProgramResolver(program);
-        var resolver = new ModuleResolver(programResolver, program.DefaultModule.Options);
-        foreach (var t in program.DefaultModuleDef.TopLevelDecls) {
-            if (t is TopLevelDeclWithMembers tm) {
-                resolver.AddClassMembers(tm, tm.Members.ToDictionary(m => m.Name, m => m));
-            }
-        }
+        var resolver = program.ModuleResolver;
         var resolutionContext = new ResolutionContext(method, true);
         var conditions = conditionSketcher.CollectPreGapConditions(program, method, lineNumber);
         var freeVars = conditions.SelectMany(c => FreeVariablesUtil.ComputeFreeVariables(Reporter.Options, c).ToList()).Distinct().ToList();
@@ -90,18 +84,17 @@ namespace Microsoft.Dafny {
                     Log("### number of arguments: " + idPattern.Arguments.Count);
                     var extendedEnv = inductiveSketcher.ExtendEnvironment(env, variables);
                     var ctorPredicate = new Name(idPattern.Ctor.Name+"?");
-                    var predicate = new ExprDotName(source.Origin, source, ctorPredicate, null);
+                    var predicate = new MemberSelectExpr(source.Origin, source, ctorPredicate);
                     resolver.ResolveExpression(predicate, resolutionContext);
                     var extendedPath = path.Concat(new List<Expression> { predicate }).ToList();
                     var arguments = idPattern.Ctor.Formals.Select(p => {
-                        var e = new ExprDotName(source.Origin, new Cloner().CloneExpr(source), p.NameNode, null);
+                        var e = new MemberSelectExpr(source.Origin, source, p.NameNode);
                         resolver.ResolveExpression(e, resolutionContext);
                         return e;
                     });
                     Log("### arguments: " + string.Join(", ", arguments.Select(a => a.ToString())));
                     var map = idPattern.Arguments.Zip(arguments).Select(p => {
                         if (p.Item1 is IdPattern vid) {
-                            Contract.Assert(p.Item2.ResolvedExpression != null, "Expected resolved expression " + p.Item2);
                             return (vid.BoundVar, (Expression)p.Item2);
                         } else {
                             return (null, null);

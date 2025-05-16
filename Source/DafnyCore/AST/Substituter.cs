@@ -724,6 +724,9 @@ namespace Microsoft.Dafny {
     }
 
     protected List<Type> SubstituteTypeList(List<Type> types) {
+      if (types == null) {
+        return null;
+      }
       Contract.Requires(types != null);
       Contract.Ensures(Contract.Result<List<Type>>() != null);
       if (types.Count == 0) {  // optimization
