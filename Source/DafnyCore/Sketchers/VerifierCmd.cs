@@ -175,7 +175,7 @@ namespace Microsoft.Dafny {
                 .Select(m => int.Parse(m.Groups[1].Value))
                 .ToList();
 
-            return result;
+            return result.Distinct().ToList();
         }
     }
 }
