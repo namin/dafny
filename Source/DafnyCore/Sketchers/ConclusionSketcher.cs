@@ -1,8 +1,6 @@
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using static Microsoft.Dafny.DafnyLogger;
 using static Microsoft.Dafny.VerifierCmd;
@@ -37,7 +35,7 @@ namespace Microsoft.Dafny {
         var functionCalls = new List<FunctionCallExpr>();
         conditions.ForEach(c => AllFunctionCalls(c, functionCalls));
         functionCalls = functionCalls.Distinct().ToList();
-        var inferredConditions = new List<Expression>();
+        var inferredConditions = new List<string>();
         foreach (var functionCall in functionCalls) {
             inferredConditions.AddRange(await inferConditionsOfCall(input.Content, resolver, resolutionContext, requires, parameters, functionCall));
         }
@@ -52,8 +50,8 @@ namespace Microsoft.Dafny {
         return new SketchResponse(sb.ToString());
     }
 
-    private async Task<List<Expression>> inferConditionsOfCall(string context, ModuleResolver resolver, ResolutionContext resolutionContext, List<string> requires, List<(string Name, string Type)> parameters, FunctionCallExpr functionCall) {
-        var inferredConditions = new List<Expression>();
+    private async Task<List<string>> inferConditionsOfCall(string context, ModuleResolver resolver, ResolutionContext resolutionContext, List<string> requires, List<(string Name, string Type)> parameters, FunctionCallExpr functionCall) {
+        var inferredConditions = new List<string>();
         Function followedFunction = functionCall.Function;
         if (followedFunction == null || followedFunction.Body == null) {
             Log("### Funtion body for function " + functionCall + " is null");
@@ -64,36 +62,39 @@ namespace Microsoft.Dafny {
     }
 
 
-    private async Task inferConditionsOfFunctionInCall(string context, ModuleResolver resolver, ResolutionContext resolutionContext,  List<string> requires, List<(string Name, string Type)> parameters, FunctionCallExpr functionCallExpr, Function followedFunction, List<Expression> inferredConditions) {
+    private async Task inferConditionsOfFunctionInCall(string context, ModuleResolver resolver, ResolutionContext resolutionContext,  List<string> requires, List<(string Name, string Type)> parameters, FunctionCallExpr functionCallExpr, Function followedFunction, List<string> inferredConditions) {
         var functionBody = followedFunction.Body;
 
       var map = inductiveSketcher.MapFunctionParametersToArguments(followedFunction, functionCallExpr);
       var env = inductiveSketcher.ReverseMapForVarValues(map);
       var substitutedBody = inductiveSketcher.SubstituteExpression(followedFunction.Body, map);
 
-      await FollowExpr(substitutedBody, resolver, resolutionContext, followedFunction, functionCallExpr, env, parameters, context, requires, new List<Expression>(), inferredConditions);
+      await FollowExpr(substitutedBody, resolver, resolutionContext, followedFunction, functionCallExpr, env, parameters, context, requires, new List<string>(), inferredConditions);
     }
 
-    private async Task FollowExpr(Expression expr, ModuleResolver resolver, ResolutionContext resolutionContext, Function followedFunction, FunctionCallExpr functionCallExpr, Dictionary<string, IVariable> env, List<(string Name, string Type)> parameters, string context, List<string> requires, List<Expression> path, List<Expression> inferredConditions) {
+    private async Task FollowExpr(Expression expr, ModuleResolver resolver, ResolutionContext resolutionContext, Function followedFunction, FunctionCallExpr functionCallExpr, Dictionary<string, IVariable> env, List<(string Name, string Type)> parameters, string context, List<string> requires, List<string> path, List<string> inferredConditions) {
+            var allParameters = parameters.Concat(env.Select(kvp => (kvp.Key, kvp.Value.Type.ToString()))).Distinct().ToList();
             if (expr is ITEExpr iteExpr) {
-                var test = iteExpr.Test;
-                var disjointConditions = new List<(Expression, List<Expression>)>();
-                var notTest = UnaryOpExpr.CreateNot(test.Origin, test);
-                var subConditionsTrue = new List<Expression>();
-                var subConditionsFalse = new List<Expression>();
-                await FollowExpr(iteExpr.Thn, resolver, resolutionContext, followedFunction, functionCallExpr, env, parameters, context, requires, path.Concat(new List<Expression> { test }).ToList(), subConditionsTrue);
-                await FollowExpr(iteExpr.Els, resolver, resolutionContext, followedFunction, functionCallExpr, env, parameters, context, requires, path.Concat(new List<Expression> { notTest }).ToList(), subConditionsFalse);
-                if (subConditionsTrue.Count > 0) {
-                    disjointConditions.Add((test, subConditionsTrue));
-                }
-                if (subConditionsFalse.Count > 0) {
-                    disjointConditions.Add((notTest, subConditionsFalse));
+                var test = iteExpr.Test.ToString();
+                var disjointConditions = new List<(string, List<string>)>();
+                var notTest = "!(" + test + ")";
+                var oks = await RunVerifierConditions(context, allParameters, requires.Concat(path).ToList(), new List<string> { test, notTest });
+                foreach (var ok in oks) {
+                    var subConditions = new List<string>();
+                    var next = (ok.Item1 == 0) ? iteExpr.Thn : iteExpr.Els;
+                    await FollowExpr(next, resolver, resolutionContext, followedFunction, functionCallExpr, env, parameters, context, requires, path.Concat(new List<string> { ok.Item2 }).ToList(), subConditions);
+                    if (subConditions.Count > 0) {
+                        disjointConditions.Add((ok.Item2, subConditions));
+                    }
                 }
                 addDisjointConditions(disjointConditions, inferredConditions);
             } else if (expr is NestedMatchExpr nestedMatchExpr) {
                 Log("## NestedMatchExpr: " + nestedMatchExpr);
                 var source = nestedMatchExpr.Source;
-                var disjointConditions = new List<(Expression, List<Expression>)>();
+                var disjointConditions = new List<(string, List<string>)>();
+                var cases = new List<string>();
+                var substs = new List<Expression>();
+                var extendedEnvs = new List<Dictionary<string, IVariable>>();
                 foreach (var caseStmt in nestedMatchExpr.Cases) {
                     var pattern = caseStmt.Pat;
                     if (pattern is IdPattern idPattern && idPattern.Ctor != null) {
@@ -102,10 +103,8 @@ namespace Microsoft.Dafny {
                         Log("### variables: " + string.Join(", ", variables.Select(v => v.Name)));
                         Log("### number of arguments: " + idPattern.Arguments.Count);
                         var extendedEnv = inductiveSketcher.ExtendEnvironment(env, variables);
-                        var ctorPredicate = new Name(idPattern.Ctor.Name + "?");
-                        var predicate = new MemberSelectExpr(source.Origin, source, ctorPredicate);
-                        resolver.ResolveExpression(predicate, resolutionContext);
-                        var extendedPath = path.Concat(new List<Expression> { predicate }).ToList();
+                        var predicate = "(" + source.ToString() + ")." + idPattern.Ctor.Name + "?";
+                        var extendedPath = path.Concat(new List<string> { predicate }).ToList();
                         var arguments = idPattern.Ctor.Formals.Select(p => {
                             var e = new MemberSelectExpr(source.Origin, source, p.NameNode);
                             resolver.ResolveExpression(e, resolutionContext);
@@ -120,13 +119,19 @@ namespace Microsoft.Dafny {
                             }
                         }).Where(p => p.Item1 != null).ToDictionary();
                         var substBody = inductiveSketcher.SubstituteExpression(caseStmt.Body, map);
-                        var subConditions = new List<Expression>();
-                        await FollowExpr(substBody, resolver, resolutionContext, followedFunction, functionCallExpr, extendedEnv, parameters, context, requires, extendedPath, subConditions);
-                        if (subConditions.Count > 0) {
-                            disjointConditions.Add((predicate, subConditions));
-                        }
+                        cases.Add(predicate);
+                        substs.Add(substBody);
+                        extendedEnvs.Add(extendedEnv);
                     } else {
                         Log("### Not IdPattern " + pattern);
+                    }
+                }
+                var oks = await RunVerifierConditions(context, allParameters, requires.Concat(path).ToList(), cases);
+                foreach (var ok in oks) {
+                    var subConditions = new List<string>();
+                    await FollowExpr(substs[ok.Item1], resolver, resolutionContext, followedFunction, functionCallExpr, extendedEnvs[ok.Item1], parameters, context, requires, path.Concat(new List<string> { ok.Item2 }).ToList(), subConditions);
+                    if (subConditions.Count > 0) {
+                        disjointConditions.Add((ok.Item2, subConditions));
                     }
                 }
                 addDisjointConditions(disjointConditions, inferredConditions);
@@ -134,26 +139,21 @@ namespace Microsoft.Dafny {
                 Log("## LetExpr: " + letExpr);
                 await FollowExpr(BoogieGenerator.InlineLet(letExpr), resolver, resolutionContext, followedFunction, functionCallExpr, env, parameters, context, requires, path, inferredConditions);
             } else if (expr.Type.ToString() == functionCallExpr.Type.ToString()) {
-                var eqExpr = BinaryExpr.CreateEq(functionCallExpr, expr, functionCallExpr.Type);
-                var pathRequires = path.Select(e => e.ToString()).ToList();
-                var allParameters = parameters.Concat(env.Select(kvp => (kvp.Key, kvp.Value.Type.ToString()))).Distinct().ToList();
-                var check = await RunVerifierImplication(context, allParameters, requires.Concat(pathRequires).ToList(), new List<string> { eqExpr.ToString() });
-                if (check == 0) {
-                    inferredConditions.Add(eqExpr);
-                }
+                var eq = "(" + functionCallExpr.ToString() + ")==(" + expr.ToString() + ")";
+                inferredConditions.Add(eq);
             } else {
                 Log("### Unhandled expression: " + expr.Type + " vs " + functionCallExpr.Type + " for " + expr);
             }
     }
 
-    private void addDisjointConditions(List<(Expression, List<Expression>)> disjointConditions, List<Expression> inferredConditions) {
+    private void addDisjointConditions(List<(string, List<string>)> disjointConditions, List<string> inferredConditions) {
         var n = disjointConditions.Count;
         if (n == 1) {
             inferredConditions.AddRange(disjointConditions[0].Item2);
         } else if (n > 1) {
-            inferredConditions.Add(disjointConditions.Select(dc => dc.Item1).Aggregate((a, b) => BinaryExpr.CreateOr(a, b)));
+            inferredConditions.Add(string.Join(" || ", disjointConditions.Select(dc => "("+dc.Item1+")")));
             foreach (var x in disjointConditions) {
-                inferredConditions.Add(BinaryExpr.CreateImplies(x.Item1, x.Item2.Aggregate((a, b) => BinaryExpr.CreateAnd(a, b))));
+                inferredConditions.Add("( " + x.Item1 + " ) ==> (" + string.Join(" && ", x.Item2.Select(c => "(" + c + ")")) + ")");
             }
         }
     }
