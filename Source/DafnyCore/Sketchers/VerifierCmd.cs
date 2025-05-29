@@ -40,7 +40,6 @@ namespace Microsoft.Dafny {
             return indices.Select(i => (i,conditions[i])).ToList();
         }
     
-
         public static async Task<int> RunVerifierImplication(string context, List<(string, string)> parameters, List<string> requires, List<string> ensures) {
             var name = "scratchpad";
             var lemma = "lemma " + name + "(" + string.Join(", ", parameters.Select(p => p.Item1 + ": " + p.Item2)) + ")" +
