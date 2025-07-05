@@ -40,7 +40,32 @@ namespace Microsoft.Dafny {
             }
             return clauses;
         }
-    
+
+        public static async Task<List<int>> KeepVerified(string programText, string methodNamePrefix, int count) {
+            // TODO: could do this in one call instead of one call per index?
+            var indices = new List<int>();
+            string tempFilePath = Path.GetTempFileName() + ".dfy";
+            File.WriteAllText(tempFilePath, programText);
+            try {
+                for (int i = 0; i < count; i++) {
+                    var text = await VerifierCmd.RunVerifier(tempFilePath, "--filter-symbol " + methodNamePrefix + (i + 1));
+                    Log("### Verifier output");
+                    Log(text);
+                    var success = ParseErrorCount(text) == 0;
+                    if (success) {
+                        indices.Add(i);
+                    }
+                }
+                return indices;
+            }
+            finally {
+                // Clean up the temporary file
+                if (File.Exists(tempFilePath)) {
+                    File.Delete(tempFilePath);
+                }
+            }
+        }
+
         public static async Task<List<(int, string)>> RunVerifierConditions(string context, List<(string, string)> parameters, List<string> requires, List<string> conditions) {
             var name = "scratchpad";
             var lemma = "lemma " + name + "(" + string.Join(", ", parameters.Select(p => p.Item1 + ": " + p.Item2)) + ")" +

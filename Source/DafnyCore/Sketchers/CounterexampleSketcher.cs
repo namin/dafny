@@ -18,17 +18,22 @@ namespace Microsoft.Dafny {
             var ens = string.Join(" && ", input.Method.Ens.Select(x => x.E.ToString()));
             var ensFail = "ensures !(" + ens + ")";
 
+            var methodNamePrefix = methodName + "_CounterExample_";
             var sb = new StringBuilder();
             for (int i = 0; i < clauses.Count; i++) {
                 var clause = clauses[i];
-                var name = methodName + "_CounterExample_" + (i+1);
+                var name = methodNamePrefix + (i+1);
                 sb.Append($"lemma {name}({ins})\n");
                 sb.Append($"requires {clause}\n");
                 sb.Append(ensFail + "\n");
                 sb.Append("{}\n");
                 sb.Append("\n");
             }
-            return new SketchResponse(sb.ToString());
+
+            var indices = await KeepVerified(programText + "\n" + sb.ToString(), methodNamePrefix, clauses.Count);
+
+            var r = string.Join("\n", indices.Select(i => clauses[i]));
+            return new SketchResponse(r);
         }
     }
 }
