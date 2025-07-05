@@ -24,7 +24,24 @@ namespace Microsoft.Dafny {
             return allText;
         }
 
-        public static async Task<List<(int,string)>> RunVerifierConditions(string context, List<(string, string)> parameters, List<string> requires, List<string> conditions) {
+        public static async Task<List<string>> ExtractCounterexamples(string programText, string methodName) {
+            var text = await VerifyDafnyProgram(programText, methodName, "--extract-counterexample");
+            var pattern = @"\.dfy\(\d+,\d+\): initial state:\s*\r?\n\s*assume (.+)";
+            var matches = Regex.Matches(text, pattern);
+            var clauses = new List<string>();
+            foreach (Match match in matches) {
+                if (match.Groups.Count > 1) {
+                    clauses.Add(match.Groups[1].Value.Trim());
+                }
+            }
+            Log("### Found clauses:");
+            foreach (var clause in clauses) {
+                Log($"- {clause}");
+            }
+            return clauses;
+        }
+    
+        public static async Task<List<(int, string)>> RunVerifierConditions(string context, List<(string, string)> parameters, List<string> requires, List<string> conditions) {
             var name = "scratchpad";
             var lemma = "lemma " + name + "(" + string.Join(", ", parameters.Select(p => p.Item1 + ": " + p.Item2)) + ")" +
                 string.Join('\n', requires.Select(x => "\nrequires " + x));
@@ -37,7 +54,7 @@ namespace Microsoft.Dafny {
             var sketchedProgram = context + "\n" + full_lemma;
             var output = await VerifyDafnyProgram(sketchedProgram, name);
             var indices = FindFalseFailures(output);
-            return indices.Select(i => (i,conditions[i])).ToList();
+            return indices.Select(i => (i, conditions[i])).ToList();
         }
     
         public static async Task<int> RunVerifierImplication(string context, List<(string, string)> parameters, List<string> requires, List<string> ensures) {
@@ -107,14 +124,14 @@ namespace Microsoft.Dafny {
             }
         }
 
-        public static async Task<string> VerifyDafnyProgram(string programText, string methodName) {
+        public static async Task<string> VerifyDafnyProgram(string programText, string methodName, string extra = "") {
             //Log("## Program to verify");
             //Log(programText);
             // Create a temporary file with the sketch content
             string tempFilePath = Path.GetTempFileName() + ".dfy";
             File.WriteAllText(tempFilePath, programText);
             try {
-                var text = await VerifierCmd.RunVerifier(tempFilePath, "--filter-symbol " + methodName);
+                var text = await VerifierCmd.RunVerifier(tempFilePath, "--filter-symbol " + methodName + " " + extra);
                 Log("### Verifier output");
                 Log(text);
                 return text;
