@@ -26,7 +26,7 @@ namespace Microsoft.Dafny {
 
         public static async Task<List<string>> ExtractCounterexamples(string programText, string methodName) {
             var text = await VerifyDafnyProgram(programText, methodName, "--extract-counterexample");
-            var pattern = @"\.dfy\(\d+,\d+\): initial state:\s*\r?\n\s*assume (.+)";
+            var pattern = @"\.dfy\(\d+,\d+\): initial state:\s*\r?\n\s*assume (.+);";
             var matches = Regex.Matches(text, pattern);
             var clauses = new List<string>();
             foreach (Match match in matches) {
