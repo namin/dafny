@@ -124,13 +124,13 @@ namespace Microsoft.Dafny.LanguageServer.Handlers.Custom {
         int startLine = method.BodyStartTok.line - 1;
         int endLine = method.Body.EndToken.line - 1;
         var methodLines = lines.Skip(startLine).Take(endLine - startLine + 1).ToArray();
-        var diagnosticsByLine = new Dictionary<int, List<string>>();
+        var diagnosticsByLine = new Dictionary<int, HashSet<string>>();
 
         foreach (var diagnostic in diagnostics) {
             int diagLine = diagnostic.Diagnostic.Range.Start.Line;
             if (diagLine >= startLine && diagLine <= endLine) {
                 if (!diagnosticsByLine.ContainsKey(diagLine - startLine)) {
-                    diagnosticsByLine[diagLine - startLine] = new List<string>();
+                    diagnosticsByLine[diagLine - startLine] = new HashSet<string>();
                 }
                 var lineinfo = inline ? "" : $" Ln {diagLine+1}:";
                 diagnosticsByLine[diagLine - startLine].Add(
