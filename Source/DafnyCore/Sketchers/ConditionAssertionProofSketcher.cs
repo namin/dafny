@@ -139,7 +139,7 @@ namespace Microsoft.Dafny {
           if (ifStmt.Thn.StartToken.line <= lineNumber && lineNumber <= ifStmt.Thn.EndToken.line) {
             conditions.Add(ifStmt.Guard);
             TraversePreGapStatements(ifStmt.Thn, program, method, lineNumber, conditions);
-          } else if (ifStmt.Els.StartToken.line <= lineNumber && lineNumber <= ifStmt.Els.EndToken.line) {
+          } else if (ifStmt.Els != null && ifStmt.Els.StartToken.line <= lineNumber && lineNumber <= ifStmt.Els.EndToken.line) {
             conditions.Add(UnaryOpExpr.CreateNot(ifStmt.Guard.Origin, ifStmt.Guard));
             if (ifStmt.Els is BlockStmt elseBlock) {
               TraversePreGapStatements(elseBlock, program, method, lineNumber, conditions);
