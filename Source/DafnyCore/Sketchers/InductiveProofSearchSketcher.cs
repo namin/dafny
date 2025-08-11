@@ -31,12 +31,12 @@ namespace Microsoft.Dafny {
       if (lineNo < 0) {
         return new SketchResponse("// Cannot find method");
       }
-      var requiresCalls = inductiveProofSketcher.AllRequiresCalls(method).Select(item => item.Item1).Distinct().ToList();
+      var allCalls = inductiveProofSketcher.AllCalls(method).Select(item => item.Item1).Distinct().ToList();
       var vars = inductiveProofSketcher.FindInductionVariables(method).Distinct().ToList();
       var sketches = new List<(string, int)>();
-      foreach (var requireCall in requiresCalls) {
+      foreach (var call in allCalls) {
         await considerSketch(sketches, programText, method.Name, lineNo,
-            inductiveProofSketcher.GenerateFunctionBasedInductionProofSketch(method, requireCall));
+            inductiveProofSketcher.GenerateFunctionBasedInductionProofSketch(method, call));
       }
       foreach (var inductionVar in vars) {
         await considerSketch(sketches, programText, method.Name, lineNo,

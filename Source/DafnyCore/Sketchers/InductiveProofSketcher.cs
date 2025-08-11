@@ -22,7 +22,7 @@ namespace Microsoft.Dafny {
         return "// Error: No method resolved.";
       }
       // Determine if function-based induction should be applied
-      var functionCallExpr = RequiresCallsFunction(method);
+      var functionCallExpr = CallsFunction(method);
       if (functionCallExpr != null) {
         return GenerateFunctionBasedInductionProofSketch(method, functionCallExpr);
       }
@@ -30,20 +30,21 @@ namespace Microsoft.Dafny {
       return GenerateStandardInductionProofSketch(method);
     }
 
-    public List<(FunctionCallExpr,bool)> AllRequiresCalls(Method method) {
-        var requireCalls = new List<(FunctionCallExpr,bool)>();
-        foreach (var req in method.Req) {
-            var functionCallExpr = FindFunctionCallExpr(req.E);
-            if (functionCallExpr != null) {
-                // Check for the {:induction_target} attribute
-                bool target = req.Attributes != null && req.Attributes.Name == "induction_target";
-                requireCalls.Add((functionCallExpr, target));
-            }
+    public List<(FunctionCallExpr,bool)> AllCalls(Method method) {
+        var allCalls = new List<(FunctionCallExpr,bool)>();
+        var reqAndEnsCalls = method.Req.Concat(method.Ens).ToList();
+        foreach (var req in reqAndEnsCalls) {
+        var functionCallExpr = FindFunctionCallExpr(req.E);
+        if (functionCallExpr != null) {
+          // Check for the {:induction_target} attribute
+          bool target = req.Attributes != null && req.Attributes.Name == "induction_target";
+          allCalls.Add((functionCallExpr, target));
         }
-        return requireCalls;
+      }
+        return allCalls;
     }
-    private FunctionCallExpr? RequiresCallsFunction(Method method) {
-        var list = AllRequiresCalls(method);
+    private FunctionCallExpr? CallsFunction(Method method) {
+        var list = AllCalls(method);
         FunctionCallExpr? result =
             list.FirstOrDefault(item => item.Item2).Item1
             ?? list.FirstOrDefault().Item1;
