@@ -33,12 +33,9 @@ namespace Microsoft.Dafny {
         return;
       }
 
-      var tw = filename == "-" ? program.Options.OutputWriter : new StreamWriter(filename);
+      using var tw = filename == "-" ? program.Options.OutputWriter.StatusWriter() : new StreamWriter(filename);
       var pr = new Printer(tw, program.Options, program.Options.PrintMode);
       pr.PrintProgramLargeStack(program, afterResolver);
-      if (filename != "-") {
-        tw.Dispose();
-      }
     }
 
     /// <summary>
@@ -116,8 +113,8 @@ namespace Microsoft.Dafny {
       if (options.PrintFile != null) {
         bplFilename = options.PrintFile;
       } else {
-        string baseName = cce.NonNull(Path.GetFileName(baseFile));
-        baseName = cce.NonNull(Path.ChangeExtension(baseName, "bpl"));
+        string baseName = Cce.NonNull(Path.GetFileName(baseFile));
+        baseName = Cce.NonNull(Path.ChangeExtension(baseName, "bpl"));
         bplFilename = Path.Combine(Path.GetTempPath(), baseName);
       }
 
@@ -168,10 +165,8 @@ namespace Microsoft.Dafny {
         case PipelineOutcome.ResolutionError:
         case PipelineOutcome.TypeCheckingError:
           engine.PrintBplFile(bplFileName, program, false, false, options.PrettyPrint);
-          await options.OutputWriter.WriteLineAsync();
-          await options.OutputWriter.WriteLineAsync(
+          options.OutputWriter.Exception(
             "*** Encountered internal translation error - re-running Boogie to get better debug information");
-          await options.OutputWriter.WriteLineAsync();
 
           var /*!*/
             fileNames = new List<string /*!*/> { bplFileName };
@@ -184,7 +179,7 @@ namespace Microsoft.Dafny {
 
         case PipelineOutcome.ResolvedAndTypeChecked:
           engine.EliminateDeadVariables(program);
-          engine.CollectModSets(program);
+          engine.CollectModifies(program);
           engine.CoalesceBlocks(program);
           engine.Inline(program);
           var inferAndVerifyOutcome = await engine.InferAndVerify(output, program, stats, programId);
@@ -192,7 +187,7 @@ namespace Microsoft.Dafny {
 
         default:
           Contract.Assert(false);
-          throw new cce.UnreachableException(); // unexpected outcome
+          throw new Cce.UnreachableException(); // unexpected outcome
       }
     }
   }

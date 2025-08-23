@@ -57,7 +57,9 @@ namespace Microsoft.Dafny.Compilers {
       Feature.UnicodeChars,
       Feature.ConvertingValuesToStrings,
       Feature.BuiltinsInRuntime,
-      Feature.RuntimeCoverageReport
+      Feature.RuntimeCoverageReport,
+      Feature.StandardLibraries,
+      Feature.StandardLibrariesActionsExterns
     };
 
     private List<DatatypeDecl> datatypeDecls = [];
@@ -174,7 +176,7 @@ namespace Microsoft.Dafny.Compilers {
     }
 
     private string TypeParameters(List<TypeParameter> targs) {
-      Contract.Requires(cce.NonNullElements(targs));
+      Contract.Requires(Cce.NonNullElements(targs));
       Contract.Ensures(Contract.Result<string>() != null);
       if (targs != null) {
         return Util.Comma(targs, tp => "typename " + IdName(tp));
@@ -710,7 +712,7 @@ namespace Microsoft.Dafny.Compilers {
           break;
         default:
           Contract.Assert(false);  // unexpected native type
-          throw new cce.UnreachableException();  // to please the compiler
+          throw new Cce.UnreachableException();  // to please the compiler
       }
     }
 
@@ -759,7 +761,7 @@ namespace Microsoft.Dafny.Compilers {
         CodeGenerator.DeclareField(ClassName, enclosingDecl.TypeArgs, name, isStatic, isConst, type, tok, rhs, FieldWriter, Finisher);
       }
       public void InitializeField(Field field, Type instantiatedFieldType, TopLevelDeclWithMembers enclosingClass) {
-        throw new cce.UnreachableException();  // InitializeField should be called only for those compilers that set ClassesRedeclareInheritedFields to false.
+        throw new Cce.UnreachableException();  // InitializeField should be called only for those compilers that set ClassesRedeclareInheritedFields to false.
       }
       public ConcreteSyntaxTree/*?*/ ErrorWriter() => MethodWriter;
       public void Finish() { }
@@ -971,30 +973,30 @@ namespace Microsoft.Dafny.Compilers {
       } else if (xType is SetType) {
         Type argType = ((SetType)xType).Arg;
         if (ComplicatedTypeParameterForCompilation(TypeParameter.TPVariance.Co, argType)) {
-          UnsupportedFeatureError(tok, Feature.CollectionsOfTraits, "compilation of set<TRAIT> is not supported; consider introducing a ghost", wr);
+          UnsupportedFeatureError(tok, Feature.CollectionsOfTraits, wr, "compilation of set<TRAIT> is not supported; consider introducing a ghost");
         }
         return DafnySetClass + "<" + TypeName(argType, wr, tok) + ">";
       } else if (xType is SeqType) {
         Type argType = ((SeqType)xType).Arg;
         if (ComplicatedTypeParameterForCompilation(TypeParameter.TPVariance.Co, argType)) {
-          UnsupportedFeatureError(tok, Feature.CollectionsOfTraits, "compilation of seq<TRAIT> is not supported; consider introducing a ghost", wr);
+          UnsupportedFeatureError(tok, Feature.CollectionsOfTraits, wr, "compilation of seq<TRAIT> is not supported; consider introducing a ghost");
         }
         return DafnySeqClass + "<" + TypeName(argType, wr, tok) + ">";
       } else if (xType is MultiSetType) {
         Type argType = ((MultiSetType)xType).Arg;
         if (ComplicatedTypeParameterForCompilation(TypeParameter.TPVariance.Co, argType)) {
-          UnsupportedFeatureError(tok, Feature.CollectionsOfTraits, "compilation of multiset<TRAIT> is not supported; consider introducing a ghost", wr);
+          UnsupportedFeatureError(tok, Feature.CollectionsOfTraits, wr, "compilation of multiset<TRAIT> is not supported; consider introducing a ghost");
         }
         return DafnyMultiSetClass + "<" + TypeName(argType, wr, tok) + ">";
       } else if (xType is MapType) {
         Type domType = ((MapType)xType).Domain;
         Type ranType = ((MapType)xType).Range;
         if (ComplicatedTypeParameterForCompilation(TypeParameter.TPVariance.Co, domType) || ComplicatedTypeParameterForCompilation(TypeParameter.TPVariance.Co, ranType)) {
-          UnsupportedFeatureError(tok, Feature.CollectionsOfTraits, "compilation of map<TRAIT, _> or map<_, TRAIT> is not supported; consider introducing a ghost", wr);
+          UnsupportedFeatureError(tok, Feature.CollectionsOfTraits, wr, "compilation of map<TRAIT, _> or map<_, TRAIT> is not supported; consider introducing a ghost");
         }
         return DafnyMapClass + "<" + TypeName(domType, wr, tok) + "," + TypeName(ranType, wr, tok) + ">";
       } else {
-        Contract.Assert(false); throw new cce.UnreachableException();  // unexpected type
+        Contract.Assert(false); throw new Cce.UnreachableException();  // unexpected type
       }
     }
 
@@ -1108,7 +1110,7 @@ namespace Microsoft.Dafny.Compilers {
         w.Write("{0}{1}()", s, InstantiateTemplate(udt.TypeArgs));
         return w.ToString();
       } else {
-        Contract.Assert(false); throw new cce.UnreachableException();  // unexpected type
+        Contract.Assert(false); throw new Cce.UnreachableException();  // unexpected type
       }
 
     }
@@ -1137,7 +1139,8 @@ namespace Microsoft.Dafny.Compilers {
       if (compileTypeHint.AsStringLiteral() == "struct") {
         modDeclWr.WriteLine("// Extern declaration of {1}\n{0} struct {1};", DeclareTemplate(d.TypeArgs), d.Name);
       } else {
-        Error(GeneratorErrors.ErrorId.c_abstract_type_cannot_be_compiled_extern, d.Origin, "Abstract type ('{0}') with unrecognized extern attribute {1} cannot be compiled.  Expected {{:extern compile_type_hint}}, e.g., 'struct'.", wr, d.FullName, compileTypeHint.AsStringLiteral());
+        Error(GeneratorErrors.ErrorId.c_abstract_type_cannot_be_compiled_extern, d.Origin, wr,
+          "Abstract type ('{0}') with unrecognized extern attribute {1} cannot be compiled.  Expected {{:extern compile_type_hint}}, e.g., 'struct'.", d.FullName, compileTypeHint.AsStringLiteral());
       }
     }
 
@@ -1473,7 +1476,7 @@ namespace Microsoft.Dafny.Compilers {
       } else if (e.Value is BaseTypes.BigDec) {
         throw new UnsupportedFeatureException(e.Origin, Feature.RealNumbers);
       } else {
-        Contract.Assert(false); throw new cce.UnreachableException();  // unexpected literal
+        Contract.Assert(false); throw new Cce.UnreachableException();  // unexpected literal
       }
     }
     void EmitIntegerLiteral(BigInteger i, ConcreteSyntaxTree wr) {
@@ -1785,9 +1788,9 @@ namespace Microsoft.Dafny.Compilers {
           return SuffixLvalue(obj, ".{0}", compiledName);
         } else if (sf is DatatypeDestructor dtor2) {
           if (!(dtor2.EnclosingClass is IndDatatypeDecl)) {
-            UnsupportedFeatureError(dtor2.Origin, Feature.Codatatypes,
-              String.Format("Unexpected use of a destructor {0} that isn't for an inductive datatype.  Panic!",
-                member.Name));
+            UnsupportedFeatureError(dtor2.Origin, Feature.Codatatypes, null,
+              "Unexpected use of a destructor {0} that isn't for an inductive datatype.  Panic!",
+                member.Name);
           }
 
           var dt = dtor2.EnclosingClass as IndDatatypeDecl;
@@ -2043,7 +2046,7 @@ namespace Microsoft.Dafny.Compilers {
           wr.Write(".size()");
           break;
         default:
-          Contract.Assert(false); throw new cce.UnreachableException();  // unexpected unary expression
+          Contract.Assert(false); throw new Cce.UnreachableException();  // unexpected unary expression
       }
     }
 
@@ -2284,7 +2287,7 @@ namespace Microsoft.Dafny.Compilers {
           preOpString = "!"; callString = "contains"; reverseArguments = true; break;
 
         default:
-          Contract.Assert(false); throw new cce.UnreachableException();  // unexpected binary expression
+          Contract.Assert(false); throw new Cce.UnreachableException();  // unexpected binary expression
       }
     }
 
@@ -2454,7 +2457,7 @@ namespace Microsoft.Dafny.Compilers {
       Contract.Assume(ct is SetType || ct is MultiSetType);  // follows from precondition
       if (ct is MultiSetType) {
         // This should never occur since there is no syntax for multiset comprehensions yet
-        throw new cce.UnreachableException();
+        throw new Cce.UnreachableException();
       }
       var wStmts = wr.Fork();
       wr.Write("{0}.set.emplace(", collName);

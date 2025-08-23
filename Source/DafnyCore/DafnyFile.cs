@@ -7,6 +7,7 @@ using System.IO;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using DafnyAssembly;
 using DafnyCore;
@@ -150,10 +151,9 @@ public class DafnyFile {
     }
 
     if (!options.Get(DoNotVerifyDependencies) && asLibrary && warnLibrary) {
-      reporter.Warning(MessageSource.Project, "", origin,
-        $"The file '{options.GetPrintPath(filePath)}' was passed to --library. " +
-        $"Verification for that file might have used options incompatible with the current ones, or might have been skipped entirely. " +
-        $"Use a .doo file to enable Dafny to check that compatible options were used");
+      reporter.Warning(MessageSource.Project, "UnverifiedLibrary", origin,
+        "The file '{0}' was passed to --library. Verification for that file might have used options incompatible with the current ones, or might have been skipped entirely. Use a .doo file to enable Dafny to check that compatible options were used",
+        options.GetPrintPath(filePath));
     }
 
     return new DafnyFile(DafnyFileExtension, canonicalPath, baseName, () => fileSystem.ReadFile(uri), uri, origin, options) {
@@ -321,4 +321,11 @@ public class DafnyFile {
     return null;
   }
 
+  public static Uri CreateCrossPlatformUri(string path) {
+    // Only fixes Unix paths on Windows
+    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && path.StartsWith("/")) {
+      return new Uri("file://" + path);
+    }
+    return new Uri(path);
+  }
 }

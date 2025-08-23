@@ -1,5 +1,5 @@
-// RUN: %tobinary %s > %t.assertFalse.dbin
-// RUN: %resolve --input-format Binary %S/Inputs/additional.dfy --allow-warnings --stdin < %t.assertFalse.dbin > %t
+// RUN: %tobinary %s > %t.dbin
+// RUN: %resolve --check-source-location-consistency --input-format Binary %S/Inputs/additional.dfy --allow-warnings --stdin < %t.dbin > %t
 // RUN: %diff "%s.expect" "%t"
 
 class Anything {
@@ -18,6 +18,16 @@ class Anything {
     var tab := new int[3,4];
     tab[0,0] := 0;
     assert(tab[0,0] == 0);
+    
+  }
+  
+    
+  function P2(x:int, y:int) : bool {
+    x>y
+  }
+    
+  function P(x:int) : bool {
+    P2(x,10)
   }
 }
 

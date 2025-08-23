@@ -45,7 +45,7 @@ namespace Microsoft.Dafny {
         CurrentDeclaration = member;
         var ignored =
           filesWhereOnlyMembersAreVerified.Contains(member.Origin.Uri) &&
-          !member.HasUserAttribute("only", out _);
+          Attributes.Find(member.Attributes, "only") is null;
         if (ignored) {
           assertionOnlyFilter = _ => false;
         } else {
@@ -64,6 +64,11 @@ namespace Microsoft.Dafny {
             fieldDeclaration = GetReadonlyField(f);
             fuelContext = oldFuelContext;
             currentModule = null;
+            if (Options.Get(CommonOptionBag.Referrers)) {
+              // A constant is also treated as a memory location
+              fieldDeclaration = GetField(f);
+              sink.AddTopLevelDeclaration(fieldDeclaration);
+            }
           } else {
             if (f.IsMutable) {
               fieldDeclaration = GetField(f);
@@ -81,7 +86,7 @@ namespace Microsoft.Dafny {
         } else if (member is MethodOrConstructor method) {
           AddMethod_Top(method, false, includeAllMethods);
         } else {
-          Contract.Assert(false); throw new cce.UnreachableException();  // unexpected member
+          Contract.Assert(false); throw new Cce.UnreachableException();  // unexpected member
         }
         ResetAssertionOnlyFilter();
       }
@@ -168,7 +173,9 @@ namespace Microsoft.Dafny {
     }
 
     void AddMethod_Top(MethodOrConstructor m, bool isByMethod, bool includeAllMethods) {
-      if (!includeAllMethods && !InVerificationScope(m) && !referencedMembers.Contains(m)) {
+      if (!includeAllMethods &&
+          m.EnclosingClass.EnclosingModuleDefinition != forModule &&
+          !referencedMembers.Contains(m)) {
         // do nothing
         return;
       }
@@ -1733,6 +1740,10 @@ namespace Microsoft.Dafny {
       var ordinaryEtran = new ExpressionTranslator(this, Predef, m.Origin, m);
       ExpressionTranslator etran;
       var inParams = new List<Boogie.Variable>();
+      if (Options.Get(CommonOptionBag.Referrers) && m is not Lemma) {
+        inParams.Add(new Boogie.Formal(Token.NoToken, new TypedIdent(m.Origin, "depth", Bpl.Type.Int), true));
+      }
+
       var bodyKind = kind == MethodTranslationKind.SpecWellformedness || kind == MethodTranslationKind.Implementation;
       if (m is TwoStateLemma) {
         var prevHeapVar = new Boogie.Formal(m.Origin, new Boogie.TypedIdent(m.Origin, "previous$Heap", Predef.HeapType), true);

@@ -142,18 +142,16 @@ public class NoContext : ICodeContext {
   List<TypeParameter> ICodeContext.TypeArgs { get { return []; } }
   List<Formal> ICodeContext.Ins { get { return []; } }
   ModuleDefinition IASTVisitorContext.EnclosingModule { get { return Module; } }
-  bool ICodeContext.MustReverify { get { Contract.Assume(false, "should not be called on NoContext"); throw new cce.UnreachableException(); } }
-  public string FullSanitizedName { get { Contract.Assume(false, "should not be called on NoContext"); throw new cce.UnreachableException(); } }
-  public bool AllowsNontermination { get { Contract.Assume(false, "should not be called on NoContext"); throw new cce.UnreachableException(); } }
+  bool ICodeContext.MustReverify { get { Contract.Assume(false, "should not be called on NoContext"); throw new Cce.UnreachableException(); } }
+  public string FullSanitizedName { get { Contract.Assume(false, "should not be called on NoContext"); throw new Cce.UnreachableException(); } }
+  public bool AllowsNontermination { get { Contract.Assume(false, "should not be called on NoContext"); throw new Cce.UnreachableException(); } }
   CodeGenIdGenerator ICodeContext.CodeGenIdGenerator { get; } = new();
 
   public bool AllowsAllocation => true;
 }
 
-public interface RedirectingTypeDecl : ICallable {
+public interface RedirectingTypeDecl : ICallable, ICanVerify {
   string Name { get; }
-
-  string FullDafnyName { get; }
   IOrigin Tok { get; }
 
   Attributes Attributes { get; }

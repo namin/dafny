@@ -201,6 +201,11 @@ class PreTypeToTypeVisitor : ASTVisitor<IASTVisitorContext> {
       return;
     }
 
+    if (expr is LocalsObjectExpression) {
+      Contract.Assert(expr.Type != null); // Must already have been set to non-nullable object
+      return;
+    }
+
     // Case: refinement-wrapper pre-type type
     expr.UnnormalizedType = PreType2TypeUtil.PreType2RefinableType(expr.PreType);
   }
@@ -263,7 +268,7 @@ class PreTypeToTypeVisitor : ASTVisitor<IASTVisitorContext> {
         var rhsMaybeNullType = new UserDefinedType(stmt.Origin, arrayTypeDecl.Name, arrayTypeDecl, [allocateArray.ElementType]);
         rhsType = UserDefinedType.CreateNonNullType(rhsMaybeNullType);
       } else {
-        throw new cce.UnreachableException();
+        throw new Cce.UnreachableException();
       }
       tRhs.Type = rhsType;
 

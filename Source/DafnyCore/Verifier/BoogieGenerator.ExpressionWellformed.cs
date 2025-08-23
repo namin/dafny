@@ -477,29 +477,11 @@ namespace Microsoft.Dafny {
         case MultiSelectExpr selectExpr: {
             MultiSelectExpr e = selectExpr;
             CheckWellformed(e.Array, wfOptions, locals, builder, etran);
-            Bpl.Expr array = etran.TrExpr(e.Array);
-            builder.Add(Assert(GetToken(e.Array), Bpl.Expr.Neq(array, Predef.Null),
-              new NonNull("array", e.Array), builder.Context));
-            if (etran.UsesOldHeap) {
-              builder.Add(Assert(GetToken(e.Array), MkIsAlloc(array, e.Array.Type, etran.HeapExpr),
-                new IsAllocated("array", null, e.Array), builder.Context));
-            }
-            for (int idxId = 0; idxId < e.Indices.Count; idxId++) {
-              var idx = e.Indices[idxId];
-              CheckWellformed(idx, wfOptions, locals, builder, etran);
-
-              var index = etran.TrExpr(idx);
-              index = ConvertExpression(idx.Origin, index, idx.Type, Type.Int);
-              var lower = Bpl.Expr.Le(Bpl.Expr.Literal(0), index);
-              var length = ArrayLength(idx.Origin, array, e.Indices.Count, idxId);
-              var upper = Bpl.Expr.Lt(index, length);
-              var tok = idx is IdentifierExpr ? e.Origin : idx.Origin; // TODO: Reusing the token of an identifier expression would underline its definition. but this is still not perfect.
-
-              var desc = new InRange(e.Array, e.Indices[idxId], true, $"index {idxId}", idxId);
-              builder.Add(Assert(tok, BplAnd(lower, upper), desc, builder.Context, wfOptions.AssertKv));
-            }
+            var array = CheckNonNullAndAllocated(builder, etran, e.Array);
+            var indices = e.Indices;
+            CheckWellFormednessOfIndexList(wfOptions, locals, builder, etran, indices, array, e.Array, e);
             if (wfOptions.DoReadsChecks) {
-              Bpl.Expr fieldName = etran.GetArrayIndexFieldName(e.Origin, e.Indices);
+              Bpl.Expr fieldName = etran.GetArrayIndexFieldName(e.Origin, indices);
               var requiredFrame = new FrameExpression(Token.NoToken, e.Array, null);
               var desc = new ReadFrameSubset("read array element", requiredFrame, readFrames, selectExpr, etran.scope);
               wfOptions.AssertSink(this, builder)(selectExpr.Origin, Bpl.Expr.SelectTok(selectExpr.Origin, etran.ReadsFrame(selectExpr.Origin), array, fieldName),
@@ -720,7 +702,7 @@ namespace Microsoft.Dafny {
                     CheckSubrange(result.Origin, etran.TrExpr(result), ee.Type, et, ee, returnBuilder);
                   });
                 }
-                Bpl.Cmd cmd = Bpl.Cmd.SimpleAssign(p.Origin, lhs, AdaptBoxing(p.Origin, etran.TrExpr(ee), cce.NonNull(ee.Type), et));
+                Bpl.Cmd cmd = Bpl.Cmd.SimpleAssign(p.Origin, lhs, AdaptBoxing(p.Origin, etran.TrExpr(ee), Cce.NonNull(ee.Type), et));
                 builder.Add(cmd);
                 if (!etran.UsesOldHeap) {
                   // the argument can't be assumed to be allocated for the old heap
@@ -1383,11 +1365,59 @@ namespace Microsoft.Dafny {
             }
             break;
           }
+        case FieldLocation: {
+            // Nothing to verify
+            break;
+          }
+        case LocalsObjectExpression: {
+            // Nothing to verify
+            break;
+          }
+        case IndexFieldLocation ifl: {
+            // Verify similar to MultiSelectExpr, except we don't actually read the location
+            // The well-formedness of the array should already have been established.
+            // However, we also need the array to be non-null and allocated
+            var array = CheckNonNullAndAllocated(builder, etran, ifl.ResolvedArrayCopy);
+            CheckWellFormednessOfIndexList(wfOptions, locals, builder, etran,
+              ifl.Indices, array, ifl.ResolvedArrayCopy, ifl);
+            // We don't do reads checks as we are not reading the heap
+            break;
+          }
         default:
-          Contract.Assert(false); throw new cce.UnreachableException();  // unexpected expression
+          Contract.Assert(false); throw new Cce.UnreachableException();  // unexpected expression
       }
 
       addResultCommands?.Invoke(builder, expr);
+    }
+
+    private void CheckWellFormednessOfIndexList(WFOptions wfOptions, Variables locals, BoogieStmtListBuilder builder,
+      ExpressionTranslator etran, List<Expression> indices, Expr array, Expression arrayExpression, Expression e) {
+      for (int idxId = 0; idxId < indices.Count; idxId++) {
+        var idx = indices[idxId];
+        CheckWellformed(idx, wfOptions, locals, builder, etran);
+
+        var index = etran.TrExpr(idx);
+        index = ConvertExpression(idx.Origin, index, idx.Type, Type.Int);
+        var lower = Bpl.Expr.Le(Bpl.Expr.Literal(0), index);
+        var length = ArrayLength(idx.Origin, array, indices.Count, idxId);
+        var upper = Bpl.Expr.Lt(index, length);
+        var tok = idx is IdentifierExpr ? e.Origin : idx.Origin; // TODO: Reusing the token of an identifier expression would underline its definition. but this is still not perfect.
+
+        var desc = new InRange(arrayExpression, indices[idxId], true, $"index {idxId}", idxId);
+        builder.Add(Assert(tok, BplAnd(lower, upper), desc, builder.Context, wfOptions.AssertKv));
+      }
+    }
+
+    private Expr CheckNonNullAndAllocated(BoogieStmtListBuilder builder, ExpressionTranslator etran, Expression obj) {
+      Bpl.Expr array = etran.TrExpr(obj);
+      builder.Add(Assert(GetToken(obj), Bpl.Expr.Neq(array, Predef.Null),
+        new NonNull("array", obj), builder.Context));
+
+      if (etran.UsesOldHeap) {
+        builder.Add(Assert(GetToken(obj), MkIsAlloc(array, obj.Type, etran.HeapExpr),
+          new IsAllocated("array", null, obj), builder.Context));
+      }
+      return array;
     }
 
     public void CheckSubsetType(ExpressionTranslator etran, Expression expr, Bpl.Expr selfCall, Type resultType,

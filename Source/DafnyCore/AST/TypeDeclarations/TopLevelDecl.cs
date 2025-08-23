@@ -11,12 +11,11 @@ namespace Microsoft.Dafny;
 public abstract class TopLevelDecl : Declaration, TypeParameter.ParentType {
   public abstract string WhatKind { get; }
   public string WhatKindAndName => $"{WhatKind} '{Name}'";
-  [BackEdge]
   public ModuleDefinition EnclosingModuleDefinition;
   public List<TypeParameter> TypeArgs;
   [ContractInvariantMethod]
   void ObjectInvariant() {
-    Contract.Invariant(cce.NonNullElements(TypeArgs));
+    Contract.Invariant(Cce.NonNullElements(TypeArgs));
   }
 
   protected TopLevelDecl(Cloner cloner, TopLevelDecl original, ModuleDefinition enclosingModule) : base(cloner, original) {
@@ -25,7 +24,8 @@ public abstract class TopLevelDecl : Declaration, TypeParameter.ParentType {
   }
 
   [SyntaxConstructor]
-  protected TopLevelDecl(IOrigin origin, Name nameNode, ModuleDefinition enclosingModuleDefinition,
+  protected TopLevelDecl(IOrigin origin, Name nameNode,
+    [BackEdge] ModuleDefinition enclosingModuleDefinition,
     List<TypeParameter> typeArgs, Attributes attributes)
     : base(origin, nameNode, attributes) {
     EnclosingModuleDefinition = enclosingModuleDefinition;

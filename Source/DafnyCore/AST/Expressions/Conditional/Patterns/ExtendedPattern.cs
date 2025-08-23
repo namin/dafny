@@ -78,7 +78,7 @@ public abstract class ExtendedPattern : NodeWithOrigin {
         /* =[2]= */
         return;
       } else {
-        Contract.Assert(false); throw new cce.UnreachableException();
+        Contract.Assert(false); throw new Cce.UnreachableException();
       }
     } else if (type.AsDatatype is TupleTypeDecl tupleTypeDecl) {
       if (!(this is IdPattern)) {
@@ -126,7 +126,7 @@ public abstract class ExtendedPattern : NodeWithOrigin {
       var dtd = type.AsDatatype;
       Dictionary<string, DatatypeCtor> ctors = dtd.ConstructorsByName;
       if (ctors == null) {
-        Contract.Assert(false); throw new cce.UnreachableException();  // Datatype not found
+        Contract.Assert(false); throw new Cce.UnreachableException();  // Datatype not found
       }
       // Check if the head of the pattern is a constructor or a variable
       if (ctors.TryGetValue(idpat.Id, out var ctor)) {
@@ -156,7 +156,9 @@ public abstract class ExtendedPattern : NodeWithOrigin {
           }
         } else {
           // else applied to the wrong number of arguments
-          resolver.reporter.Error(MessageSource.Resolver, idpat.Origin, "constructor {0} of arity {2} is applied to {1} argument(s)", idpat.Id, (idpat.Arguments == null ? 0 : idpat.Arguments.Count), ctor.Formals.Count);
+          resolver.reporter.Error(MessageSource.Resolver, "ConstructorWrongArity", idpat.Origin,
+            "constructor {0} of arity {2} is applied to {1} argument(s)",
+            idpat.Id, (idpat.Arguments?.Count ?? 0).ToString(), ctor.Formals.Count.ToString());
         }
       } else {
         /* =[4]= */

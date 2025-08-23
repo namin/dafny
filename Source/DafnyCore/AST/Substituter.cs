@@ -84,7 +84,7 @@ namespace Microsoft.Dafny {
             }
           }
 
-          return cce.NonNull(substExprFinal);
+          return Cce.NonNull(substExprFinal);
         }
       } else if (expr is DisplayExpression) {
         DisplayExpression e = (DisplayExpression)expr;
@@ -432,6 +432,15 @@ namespace Microsoft.Dafny {
           Type = decreasesToExpr.Type
         };
 
+      } else if (expr is FieldLocation fieldLocation) {
+        newExpr = null;
+      } else if (expr is IndexFieldLocation indexFieldLocation) {
+        var exprList = indexFieldLocation.Indices;
+        List<Expression> newArgs = SubstituteExprList(exprList);
+        var resolvedArrayCopy = Substitute(indexFieldLocation.ResolvedArrayCopy);
+        newExpr = new IndexFieldLocation(resolvedArrayCopy, indexFieldLocation.OpenParen, newArgs, indexFieldLocation.CloseParen);
+      } else if (expr is LocalsObjectExpression) {
+        newExpr = null;
       } else {
         Contract.Assume(false); // unexpected Expression
       }
@@ -563,7 +572,7 @@ namespace Microsoft.Dafny {
         return bound;  // nothing to substitute
       } else {
         Contract.Assume(false);  // unexpected BoundedPool
-        throw new cce.UnreachableException();  // to please compiler
+        throw new Cce.UnreachableException();  // to please compiler
       }
     }
 
@@ -674,12 +683,12 @@ namespace Microsoft.Dafny {
     }
 
     protected List<Expression/*!*/>/*!*/ SubstituteExprList(List<Expression/*!*/>/*!*/ elist) {
-      Contract.Requires(cce.NonNullElements(elist));
-      Contract.Ensures(cce.NonNullElements(Contract.Result<List<Expression>>()));
+      Contract.Requires(Cce.NonNullElements(elist));
+      Contract.Ensures(Cce.NonNullElements(Contract.Result<List<Expression>>()));
 
       List<Expression> newElist = null;  // initialized lazily
       for (int i = 0; i < elist.Count; i++) {
-        cce.LoopInvariant(newElist == null || newElist.Count == i);
+        Cce.LoopInvariant(newElist == null || newElist.Count == i);
 
         Expression substE = Substitute(elist[i]);
         if (substE != elist[i] && newElist == null) {
@@ -892,7 +901,7 @@ namespace Microsoft.Dafny {
           labelledStatement.Labels, null);
         r = rr;
       } else {
-        Contract.Assert(false); throw new cce.UnreachableException();  // unexpected statement
+        Contract.Assert(false); throw new Cce.UnreachableException();  // unexpected statement
       }
 
       r.Attributes = SubstAttributes(stmt.Attributes);
@@ -972,7 +981,7 @@ namespace Microsoft.Dafny {
         c = new HavocRhs(rhs.Origin);
       } else {
         // since the Substituter is assumed to operate on statements only if they are part of a StatementExpression, then the TypeRhs case cannot occur
-        Contract.Assume(false); throw new cce.UnreachableException();
+        Contract.Assume(false); throw new Cce.UnreachableException();
       }
       c.Attributes = SubstAttributes(rhs.Attributes);
       return c;
@@ -999,12 +1008,12 @@ namespace Microsoft.Dafny {
         return new CalcStmt.TernaryCalcOp(Substitute(((CalcStmt.TernaryCalcOp)op).Index));
       } else {
         Contract.Assert(false);
-        throw new cce.UnreachableException();
+        throw new Cce.UnreachableException();
       }
     }
 
     public Attributes SubstAttributes(Attributes attrs) {
-      Contract.Requires(cce.NonNullDictionaryAndValues(substMap));
+      Contract.Requires(Cce.NonNullDictionaryAndValues(substMap));
       if (attrs != null) {
         var newArgs = new List<Expression>();  // allocate it eagerly, what the heck, it doesn't seem worth the extra complexity in the code to do it lazily for the infrequently occurring attributes
         bool anyArgSubst = false;
