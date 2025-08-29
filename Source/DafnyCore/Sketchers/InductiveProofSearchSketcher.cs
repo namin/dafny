@@ -46,17 +46,18 @@ namespace Microsoft.Dafny {
       var sketchesByCount= sketches.OrderBy(x => x.Item3.Count).ToList();
       Log(string.Join("\n\n", sketchesByCount.Select(x => "// count " + x.Item3.Count + "\n" + x.Item1)));
       var bestSketch = sketches.FirstOrDefault();
-      if (bestSketch.Item3.Count > 0) {
+      if (sketches.Count >= 2 && bestSketch.Item3.Count > 0) {
         bestSketch = FindBestSketch(sketches);
       }
       return new SketchResponse(bestSketch.Item1);
     }
 
     private (string, Method, List<int>) FindBestSketch(List<(string, Method, List<int>)> sketches) {
-      return sketches.OrderBy(x => Metric(x.Item1, x.Item2, x.Item3)).FirstOrDefault();
+      var maxDepth = sketches.Min(s => findDepth(s.Item2.Body));
+      return sketches.OrderBy(x => Metric(maxDepth, x.Item1, x.Item2, x.Item3)).FirstOrDefault();
     }
   
-    private int Metric(string sketch, Method method, List<int> badLines) {
+    private int Metric(int maxDepth, string sketch, Method method, List<int> badLines) {
       Log("### Metric for: " + string.Join(", ", badLines));
       var sketchHeader = sketch
         .Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
@@ -66,8 +67,7 @@ namespace Microsoft.Dafny {
       foreach (var badLine in badLines) {
         var (nesting, found) = findNesting(method.Body, badLine);
         Log("Bad line: " + badLine + ", nesting: " + nesting + ", found: " + found);
-        // TODO: somewhat arbitrary!
-        if (nesting <= 4) {
+        if (nesting < maxDepth) {
           m += 1;
         }
       }
@@ -90,6 +90,13 @@ namespace Microsoft.Dafny {
       return (0, false);
     }
   
+    private int findDepth(Statement stmt) {
+      return stmt.SubStatements
+        .Select(sub => findDepth(sub))
+        .DefaultIfEmpty(0)
+        .Max() + 1;
+    }
+
     private int FindInsertionLine(string programText, Method method) {
       // Find the pattern "method NAME" or "lemma NAME" where NAME matches the method name
       string pattern = $"(method|lemma)[^\n]*{Regex.Escape(method.Name)}";
