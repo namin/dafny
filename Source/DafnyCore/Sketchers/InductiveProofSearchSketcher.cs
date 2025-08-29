@@ -43,9 +43,9 @@ namespace Microsoft.Dafny {
         await considerSketchMetric(sketches, programText, method.Name, lineNo,
             inductiveProofSketcher.BuildProofSketch(method, inductionVar));
       }
-      var sketchesByCount= sketches.OrderBy(x => x.Item3.Count).ToList();
+      var sketchesByCount= sketches.OrderBy(x => (x.Item3.Count, x.Item1.Length)).ToList();
       Log(string.Join("\n\n", sketchesByCount.Select(x => "// count " + x.Item3.Count + "\n" + x.Item1)));
-      var bestSketch = sketches.FirstOrDefault();
+      var bestSketch = sketchesByCount.FirstOrDefault();
       if (sketches.Count >= 2 && bestSketch.Item3.Count > 0) {
         bestSketch = FindBestSketch(sketches);
       }
