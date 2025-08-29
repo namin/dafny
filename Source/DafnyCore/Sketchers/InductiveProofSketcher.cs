@@ -23,9 +23,11 @@ namespace Microsoft.Dafny {
         return "// Error: No method resolved.";
       }
       // Determine if function-based induction should be applied
-      var functionCallExpr = CallsFunction(method);
-      if (functionCallExpr != null) {
-        return GenerateFunctionBasedInductionProofSketch(method, functionCallExpr);
+      if (method.Req.Count != 0) {
+        var functionCallExpr = CallsFunction(method);
+        if (functionCallExpr != null) {
+          return GenerateFunctionBasedInductionProofSketch(method, functionCallExpr);
+        }
       }
       // Fallback to structural induction
       return GenerateStandardInductionProofSketch(method);
