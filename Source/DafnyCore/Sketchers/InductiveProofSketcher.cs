@@ -31,24 +31,26 @@ namespace Microsoft.Dafny {
     }
 
     public List<(FunctionCallExpr,bool)> AllCalls(Method method) {
-        var allCalls = new List<(FunctionCallExpr,bool)>();
-        var reqAndEnsCalls = method.Req.Concat(method.Ens).ToList();
-        foreach (var req in reqAndEnsCalls) {
-        var functionCallExpr = FindFunctionCallExpr(req.E);
-        if (functionCallExpr != null) {
-          // Check for the {:induction_target} attribute
-          bool target = req.Attributes != null && req.Attributes.Name == "induction_target";
-          allCalls.Add((functionCallExpr, target));
+      var allCalls = new List<(FunctionCallExpr,bool)>();
+      var reqAndEnsCalls = method.Req.Concat(method.Ens).ToList();
+      foreach (var exp in reqAndEnsCalls) {
+        var expCalls = new List<FunctionCallExpr>();
+        FindFunctionCallExprs(exp.E, expCalls);
+        bool target = exp.Attributes != null && exp.Attributes.Name == "induction_target";
+        //expCalls.Reverse();
+        foreach (var call in expCalls) {
+          allCalls.Add((call, target));
         }
       }
-        return allCalls;
+      return allCalls;
     }
+
     private FunctionCallExpr? CallsFunction(Method method) {
-        var list = AllCalls(method);
-        FunctionCallExpr? result =
-            list.FirstOrDefault(item => item.Item2).Item1
-            ?? list.FirstOrDefault().Item1;
-        return result;
+      var list = AllCalls(method);
+      FunctionCallExpr? result =
+          list.FirstOrDefault(item => item.Item2).Item1
+          ?? list.FirstOrDefault().Item1;
+      return result;
     }
 
     private FunctionCallExpr? FindFunctionCallExpr(Expression expr) {
@@ -62,6 +64,15 @@ namespace Microsoft.Dafny {
         }
       }
       return null;
+    }
+    
+    private void FindFunctionCallExprs(Expression expr, List<FunctionCallExpr> res) {
+      if (expr is FunctionCallExpr funcCallExpr) {
+        res.Add(funcCallExpr);
+      }
+      foreach (var subExpr in expr.SubExpressions) {
+        FindFunctionCallExprs(subExpr, res);
+      }
     }
 
     public string GenerateFunctionBasedInductionProofSketch(Method method, FunctionCallExpr functionCallExpr) {
@@ -86,7 +97,7 @@ namespace Microsoft.Dafny {
       foreach (var kvp in env) {
           sb.AppendLine($"{Indent(0)}//DEBUG: {kvp.Key} => {kvp.Value.Name}");
       }*/
-  
+
       //sb.AppendLine($"{Indent(0)}//DEBUG: followed function body: {followedFunction.Body}");
       var substitutedBody = SubstituteExpression(followedFunction.Body, map);
       //sb.AppendLine($"{Indent(0)}//DEBUG: Substituted Function Body:");
