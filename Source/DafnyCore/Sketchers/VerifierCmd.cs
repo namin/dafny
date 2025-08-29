@@ -4,11 +4,54 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
+using static Microsoft.Dafny.DafnyMain;
 using static Microsoft.Dafny.DafnyLogger;
 using System.Linq;
 
 namespace Microsoft.Dafny {
     class VerifierCmd {
+
+        public static async Task<Program> RunParser(string programText) {
+            string tempFilePath = Path.GetTempFileName() + ".dfy";
+            File.WriteAllText(tempFilePath, programText);
+            try {
+                return await RunParserOnFile(tempFilePath);
+            }
+            finally {
+                // Clean up the temporary file
+                if (File.Exists(tempFilePath)) {
+                    File.Delete(tempFilePath);
+                }
+            }
+        }
+
+        public async static Task<Program?> RunParserOnFile(string filePath) {
+            var options = DafnyOptions.Default;
+            var reporter = new ConsoleErrorReporter(options);
+
+            Microsoft.Dafny.Program? dafnyProgram = null;
+            String? dafnyError = null;
+            if (filePath is not null) {
+                var dafnyFile = DafnyFile.HandleDafnyFile(
+                    OnDiskFileSystem.Instance,
+                    reporter,
+                    options,
+                    new Uri(Path.GetFullPath(filePath)),
+                    Token.NoToken
+                );
+                var files = new List<DafnyFile> { dafnyFile };
+                var (program, error) = await ParseCheck(
+                    TextReader.Null,
+                    files,
+                    "sketcher-cli",
+                    options
+                );
+                dafnyProgram = program;
+                dafnyError = error;
+            }
+            return dafnyProgram;
+        }
+
         public async static Task<string> RunVerifier(string filePath, string extra = "") {
             var psi = new ProcessStartInfo("dafny", $"verify {extra} \"{filePath}\"") {
                 RedirectStandardOutput = true,
@@ -81,7 +124,7 @@ namespace Microsoft.Dafny {
             var indices = FindFalseFailures(output);
             return indices.Select(i => (i, conditions[i])).ToList();
         }
-    
+
         public static async Task<int> RunVerifierImplication(string context, List<(string, string)> parameters, List<string> requires, List<string> ensures) {
             var name = "scratchpad";
             var lemma = "lemma " + name + "(" + string.Join(", ", parameters.Select(p => p.Item1 + ": " + p.Item2)) + ")" +
@@ -114,6 +157,15 @@ namespace Microsoft.Dafny {
             var count = ParseErrorCount(output) ?? -1;
             sketches.Add((sketch, count));
             return count;
+        }
+
+        public static async Task considerSketchMetric(List<(string, Method, List<int>)> sketches, string programText, string methodName, int lineNumber, string sketch) {
+            var sketchedProgramText = InsertSketchAtLine(programText, sketch, lineNumber);
+            var output = await VerifyDafnyProgram(sketchedProgramText, methodName);
+            var badLines = FindBadLines(output);
+            var sketchedProgram = await RunParser(sketchedProgramText);
+            var method = GetMethodByName(sketchedProgram, methodName);
+            sketches.Add((sketch, method, badLines));
         }
 
         public static string InsertSketchAtLine(string program, string sketch, int lineNumber) {
@@ -217,6 +269,19 @@ namespace Microsoft.Dafny {
                 .ToList();
 
             return result.Distinct().ToList();
+        }
+        
+        // TODO: duplicated in CLI utilities
+        public static Method? GetMethodByName(Microsoft.Dafny.Program resolvedProgram, string name) {
+            if (resolvedProgram.DefaultModuleDef is DefaultModuleDefinition defaultModule) {
+                foreach (var (member, _) in defaultModule.AccessibleMembers) {
+                    var method = member as Method;
+                    if (method != null && method.Name == name) {
+                        return method;
+                    }
+                }
+            }
+            return null;
         }
     }
 }

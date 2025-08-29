@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -33,87 +34,121 @@ namespace Microsoft.Dafny {
       }
       var allCalls = inductiveProofSketcher.AllCalls(method).Select(item => item.Item1).Distinct().ToList();
       var vars = inductiveProofSketcher.FindInductionVariables(method).Distinct().ToList();
-      var sketches = new List<(string, int)>();
+      var sketches = new List<(string, Method, List<int>)>();
       foreach (var call in allCalls) {
-        await considerSketch(sketches, programText, method.Name, lineNo,
+        await considerSketchMetric(sketches, programText, method.Name, lineNo,
             inductiveProofSketcher.GenerateFunctionBasedInductionProofSketch(method, call));
       }
       foreach (var inductionVar in vars) {
-        await considerSketch(sketches, programText, method.Name, lineNo,
+        await considerSketchMetric(sketches, programText, method.Name, lineNo,
             inductiveProofSketcher.BuildProofSketch(method, inductionVar));
       }
-      var bestFirst = sketches.OrderBy(pair => pair.Item2).ToList();
-      Log(string.Join("\n\n", bestFirst.Select(x => "// count " + x.Item2 + "\n" + x.Item1)));
-      return new SketchResponse(bestFirst.FirstOrDefault().Item1);
+      var sketchesByCount= sketches.OrderBy(x => x.Item3.Count).ToList();
+      Log(string.Join("\n\n", sketchesByCount.Select(x => "// count " + x.Item3.Count + "\n" + x.Item1)));
+      var bestSketch = sketches.FirstOrDefault();
+      if (bestSketch.Item3.Count > 0) {
+        bestSketch = FindBestSketch(sketches);
+      }
+      return new SketchResponse(bestSketch.Item1);
     }
 
-    private int FindInsertionLine(string programText, Method method)
-    {
-        // Find the pattern "method NAME" or "lemma NAME" where NAME matches the method name
-        string pattern = $"(method|lemma)[^\n]*{Regex.Escape(method.Name)}";
-        Regex methodRegex = new Regex(pattern);
-        
-        // Find the match in the program text
-        Match match = methodRegex.Match(programText);
-        
-        if (!match.Success)
-        {
-            Log("### Didn't match");
-            // Method/lemma definition not found
-            return -1;
+    private (string, Method, List<int>) FindBestSketch(List<(string, Method, List<int>)> sketches) {
+      return sketches.OrderBy(x => Metric(x.Item1, x.Item2, x.Item3)).FirstOrDefault();
+    }
+  
+    private int Metric(string sketch, Method method, List<int> badLines) {
+      Log("### Metric for: " + string.Join(", ", badLines));
+      var sketchHeader = sketch
+        .Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
+        .Take(3);
+      Log(string.Join('\n', sketchHeader));
+      var m = 0;
+      foreach (var badLine in badLines) {
+        var (nesting, found) = findNesting(method.Body, badLine);
+        Log("Bad line: " + badLine + ", nesting: " + nesting + ", found: " + found);
+        // TODO: somewhat arbitrary!
+        if (nesting <= 4) {
+          m += 1;
         }
-        
-        // Calculate the end position of the match
-        int endPos = match.Index + match.Length;
-        
-        // Find the first opening brace after the method declaration that's not followed by ':'
-        int openBracePos = -1;
-        int pos = endPos;
-        
-        // Iterate through the text to find a '{' not followed by ':'
-        while (pos < programText.Length)
-        {
-            pos = programText.IndexOf('{', pos);
-            if (pos == -1)
-            {
-                Log("### No opening brace found");
-                // No opening brace found
-                return -1;
-            }
-            
-            // Check if the '{' is followed by ':'
-            if (pos + 1 < programText.Length && programText[pos + 1] == ':')
-            {
-                // This '{' is followed by ':', continue searching
-                pos++;
-                continue;
-            }
-            
-            // Found a '{' not followed by ':'
-            openBracePos = pos;
-            break;
+      }
+      return m;
+    }
+
+    private (int, bool) findNesting(Statement stmt, int line) {
+      if (stmt.StartToken.line == line) {
+        return (0, true);
+      }
+      if (stmt.StartToken.line <= line && line <= stmt.EndToken.line) {
+        foreach (var sub in stmt.SubStatements) {
+          var (subNesting, subFound) = findNesting(sub, line);
+          if (subFound) {
+            return (subNesting + 1, true);
+          }
         }
-        
-        // Find the next line after the opening brace
-        int newlinePos = programText.IndexOf('\n', openBracePos);
-        if (newlinePos == -1)
-        {
-            Log("### No newline after opening brace");
-            // No newline after opening brace
-            return -1;
+        return (1, true);
+      }
+      return (0, false);
+    }
+  
+    private int FindInsertionLine(string programText, Method method) {
+      // Find the pattern "method NAME" or "lemma NAME" where NAME matches the method name
+      string pattern = $"(method|lemma)[^\n]*{Regex.Escape(method.Name)}";
+      Regex methodRegex = new Regex(pattern);
+
+      // Find the match in the program text
+      Match match = methodRegex.Match(programText);
+
+      if (!match.Success) {
+        Log("### Didn't match");
+        // Method/lemma definition not found
+        return -1;
+      }
+
+      // Calculate the end position of the match
+      int endPos = match.Index + match.Length;
+
+      // Find the first opening brace after the method declaration that's not followed by ':'
+      int openBracePos = -1;
+      int pos = endPos;
+
+      // Iterate through the text to find a '{' not followed by ':'
+      while (pos < programText.Length) {
+        pos = programText.IndexOf('{', pos);
+        if (pos == -1) {
+          Log("### No opening brace found");
+          // No opening brace found
+          return -1;
         }
-        
-        // Count the number of newlines from the beginning to the line after opening brace
-        int lineCount = 0;
-        for (int i = 0; i <= newlinePos; i++)
-        {
-            if (programText[i] == '\n')
-            {
-                lineCount++;
-            }
+
+        // Check if the '{' is followed by ':'
+        if (pos + 1 < programText.Length && programText[pos + 1] == ':') {
+          // This '{' is followed by ':', continue searching
+          pos++;
+          continue;
         }
-        
-        return lineCount;
+
+        // Found a '{' not followed by ':'
+        openBracePos = pos;
+        break;
+      }
+
+      // Find the next line after the opening brace
+      int newlinePos = programText.IndexOf('\n', openBracePos);
+      if (newlinePos == -1) {
+        Log("### No newline after opening brace");
+        // No newline after opening brace
+        return -1;
+      }
+
+      // Count the number of newlines from the beginning to the line after opening brace
+      int lineCount = 0;
+      for (int i = 0; i <= newlinePos; i++) {
+        if (programText[i] == '\n') {
+          lineCount++;
+        }
+      }
+
+      return lineCount;
     }
   }
 }
