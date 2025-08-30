@@ -138,10 +138,10 @@ namespace Microsoft.Dafny {
         return map;
     }
 
-    private string substitutePattern(ExtendedPattern p, Dictionary<IVariable, Expression> map) {
+    private string substitutePattern(ExtendedPattern p) {
       var s = p.ToString();
-      // TODO: hack, substitute each _ with x_ because variable name cannot start with _. Should match map.
-      return Regex.Replace(s, @"(?:(?<=^)|(?<=[( ]))_", "x_");
+      // replace all variable names starting with underscores with just underscores, since they are unused
+      return Regex.Replace(s, @"\b_[A-Za-z0-9_]*\b", "_");
     }
 
     private void FollowExpr(StringBuilder sb, int indent, Expression expr, Method method, Function function, Dictionary<string, IVariable> env, bool noIndent = false) {
@@ -155,13 +155,8 @@ namespace Microsoft.Dafny {
           var variables = ExtractVariables(caseStmt);
           var extendedEnv = ExtendEnvironment(env, variables);
           var pattern = caseStmt.Pat;
-          var map = new Dictionary<IVariable, Expression>();
-          foreach (var x in variables) {
-            map[x] = new NameSegment(x.Origin, freshName(x.Name), new List<Type>());
-          }
-          var substituter = new Substituter(null, map, new Dictionary<TypeParameter, Type>());
-          sb.AppendLine($"{Indent(indent + 1)}case {substitutePattern(pattern, map)} => {{");
-          FollowExpr(sb, indent + 2, substituter.Substitute(caseStmt.Body), method, function, extendedEnv);
+          sb.AppendLine($"{Indent(indent + 1)}case {substitutePattern(pattern)} => {{");
+          FollowExpr(sb, indent + 2, caseStmt.Body, method, function, extendedEnv);
           sb.AppendLine($"{Indent(indent + 1)}}}");
         }
         sb.AppendLine($"{Indent(indent)}}}");
@@ -222,17 +217,10 @@ namespace Microsoft.Dafny {
         return variableMap;
     }
 
-    private string freshName(string name) {
-      if (name.StartsWith("_")) {
-        return "x" + name;
-      }
-      return name;
-    }
-
     public Dictionary<string, IVariable> ExtendEnvironment(Dictionary<string, IVariable> env, List<IVariable> caseVars) {
       var newEnv = new Dictionary<string, IVariable>(env);
       foreach (var variable in caseVars) {
-        newEnv[freshName(variable.Name)] = variable;
+        newEnv[variable.Name] = variable;
       }
       return newEnv;
     }
@@ -386,7 +374,7 @@ namespace Microsoft.Dafny {
 
         var datatypeDecl = inductionVar.Type.AsDatatype;
         foreach (var ctor in datatypeDecl.Ctors) {
-          var formalParams = string.Join(", ", ctor.Formals.Select(f => freshName(f.Name)));
+          var formalParams = string.Join(", ", ctor.Formals.Select(f => f.Name));
           sb.AppendLine($"{Indent(1)}case {ctor.Name}({formalParams}) => {{");
 
           var recursiveFields = ctor.Formals
