@@ -35,10 +35,15 @@ namespace Microsoft.Dafny {
 
     public List<(FunctionCallExpr,bool)> AllCalls(Method method) {
       var allCalls = new List<(FunctionCallExpr,bool)>();
-      var reqAndEnsCalls = method.Req.Concat(method.Ens).ToList();
-      foreach (var exp in reqAndEnsCalls) {
+      var reqAndEnsCalls = method.Req.Select(x => (x, true)).ToList().Concat(method.Ens.Select(x => (x, false))).ToList();
+      foreach (var x in reqAndEnsCalls) {
+        var exp = x.Item1;
+        var isReq = x.Item2;
         var expCalls = new List<FunctionCallExpr>();
         FindFunctionCallExprs(exp.E, expCalls);
+        if (!isReq) {
+          expCalls.Reverse();
+        }
         bool target = exp.Attributes != null && exp.Attributes.Name == "induction_target";
         foreach (var call in expCalls) {
           allCalls.Add((call, target));
