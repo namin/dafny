@@ -28,7 +28,7 @@ namespace Microsoft.Dafny {
       }
       // Determine if function-based induction should be applied
       if (method.Req.Count != 0 || method.Ens.Any(exp => exp.Attributes != null && exp.Attributes.Name == "induction_target")) {
-        var functionCallExpr = CallsFunction(method);
+        var functionCallExpr = CallsFunctionPreferADTProducer(method);
         if (functionCallExpr != null) {
           return GenerateFunctionBasedInductionProofSketch(method, functionCallExpr);
         }
