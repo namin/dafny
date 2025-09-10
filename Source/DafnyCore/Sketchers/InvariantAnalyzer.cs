@@ -174,9 +174,10 @@ namespace Microsoft.Dafny {
 
           for (int j = 1; j < rc.Args.Count; j++) {
             var s = Printer.ExprToString(reporter.Options, rc.Args[j]);
-            // Cheap identifier renaming via regex on word boundaries.
             for (int k = 0; k < renameFrom.Count; k++) {
-              s = Regex.Replace(s, $@"\b{Regex.Escape(renameFrom[k])}\b", renameTo[k]);
+              var pattern = $@"\b{Regex.Escape(renameFrom[k])}\b";
+              var literalReplacement = renameTo[k]; // e.g. "BINDER$0"
+              s = Regex.Replace(s, pattern, _ => literalReplacement);
             }
             args.Add(s);
           }

@@ -261,7 +261,7 @@ namespace Microsoft.Dafny {
             specialized = new List<string>(match.SpecializedArgStrings.Select(s => {
               var t = s;
               for (int i = 0; i < caseCtx.Binders.Count; i++) {
-                t = Regex.Replace(t, $@"\bBINDER\${i}\b", caseCtx.Binders[i]?.Name ?? "_");
+                t = Regex.Replace(t, $@"BINDER\${i}", caseCtx.Binders[i]?.Name ?? "_");
               }
               return t;
             }));
