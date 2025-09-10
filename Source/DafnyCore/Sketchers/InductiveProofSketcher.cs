@@ -106,7 +106,7 @@ namespace Microsoft.Dafny {
 
       var map = MapFunctionParametersToArguments(followedFunction, functionCallExpr);
 
-      var env = ReverseMapForVarValues(map);
+      var env = ReverseMapForVarValues(map, method);
 
       var substitutedBody = SubstituteExpression(followedFunction.Body, map);
 
@@ -116,16 +116,39 @@ namespace Microsoft.Dafny {
       return sb.ToString();
     }
 
-    public Dictionary<string, IVariable> ReverseMapForVarValues(Dictionary<IVariable, Expression> map) {
+    public Dictionary<string, IVariable> ReverseMapForVarValues(
+        Dictionary<IVariable, Expression> map, Method method = null) {
       var env = new Dictionary<string, IVariable>();
-      foreach (var kvp in map) {
-        if (kvp.Value is NameSegment) {
-          env[(kvp.Value as NameSegment).Name] = kvp.Key;
-        } else if (kvp.Value?.Resolved is IdentifierExpr id && id.Var != null) {
-          env[id.Var.Name] = kvp.Key;
+      foreach (var (fFormal, actual) in map) {
+        // Case 1: actual is a variable
+        if (actual is NameSegment ns && ns.Resolved is IdentifierExpr id) {
+          env[id.Var.Name] = fFormal; continue;
+        }
+        if (actual?.Resolved is IdentifierExpr id2) {
+          env[id2.Var.Name] = fFormal; continue;
+        }
+        if (method != null) {
+          // Case 2: actual is a compound term; peel to find lemma inputs
+          foreach (var mf in method.Ins) {
+            if (OccursAsName(actual, mf)) {
+              env[mf.Name] = fFormal; // tie lemma formal to followed-fn formal
+            }
+          }
         }
       }
       return env;
+    }
+
+    private bool OccursAsName(Expression e, IVariable v) {
+      if (e is NameSegment ns && ns.Resolved is IdentifierExpr id && id.Var == v) {
+        return true;
+      }
+      foreach (var sub in e.SubExpressions) {
+        if (OccursAsName(sub, v)) {
+          return true;
+        }
+      }
+      return false;
     }
 
     public Dictionary<IVariable, Expression> MapFunctionParametersToArguments(Function function, FunctionCallExpr functionCallExpr) {
@@ -427,7 +450,7 @@ namespace Microsoft.Dafny {
       }
       return null;
     }
-    
+
     private static bool HasAttribute(Attributes a, string name) {
       for (var it = a; it != null; it = it.Prev) {
         if (it.Name == name) {
@@ -439,6 +462,31 @@ namespace Microsoft.Dafny {
     private static bool NeedsReveal(Function f) {
       // Conservative: reveal only if the function is explicitly opaque or has no body.
       return f == null || f.Body == null || HasAttribute(f.Attributes, "opaque");
+    }
+    
+    private FunctionCallExpr CallsFunctionPreferADTProducer(Method method) {
+      var calls = AllCalls(method);
+      // score inner calls that produce the ADT of the lemma’s first input and have bodies
+      var lemmaAdt = method.Ins.FirstOrDefault(p => p.Type != null && p.Type.IsDatatype)?.Type;
+      int Score(FunctionCallExpr call) {
+        int s = 0;
+        if (lemmaAdt != null &&
+            call.Function?.ResultType != null &&
+            call.Function.ResultType.Equals(lemmaAdt)) {
+          s += 4;
+        }
+        if (call.Function?.Body != null) {
+          s += 2;
+        }
+        if (call.Args.Count > 0 && call.Args[0] is NameSegment) {
+          s += 1;
+        }
+        return s;
+      }
+
+      var target = calls.Where(c => c.Item2).Select(c => c.Item1)
+                        .OrderByDescending(Score).FirstOrDefault();
+      return target ?? calls.Select(c => c.Item1).OrderByDescending(Score).First();
     }
   }
 }
