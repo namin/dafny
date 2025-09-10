@@ -29,7 +29,7 @@ namespace Microsoft.Dafny {
       // Determine if function-based induction should be applied
       if (method.Req.Count != 0 || method.Ens.Any(exp => exp.Attributes != null && exp.Attributes.Name == "induction_target")) {
         var functionCallExpr = CallsFunction(method);
-        if (functionCallExpr != null) {          
+        if (functionCallExpr != null) {
           return GenerateFunctionBasedInductionProofSketch(method, functionCallExpr);
         }
       }
@@ -174,8 +174,8 @@ namespace Microsoft.Dafny {
 
           sb.AppendLine($"{Indent(indent + 1)}case {casePrint} => {{");
 
-          if (driverInvariant != null) {
-            sb.AppendLine($"{Indent(indent + 2)}reveal {driverInvariant.Predicate.Name}();");
+          if (driverInvariant != null && NeedsReveal(driverInvariant.Predicate)) {
+            sb.AppendLine($"{Indent(indent)}reveal {driverInvariant.Predicate.Name}();");
           }
 
           var newCaseCtx = new CaseContext(caseKey, binders);
@@ -417,7 +417,7 @@ namespace Microsoft.Dafny {
     private string PrintExpression(Expression expr) {
       return Printer.ExprToString(reporter.Options, expr);
     }
-    
+
     private IVariable VarOf(Expression e) {
       if (e is NameSegment ns && ns.Resolved is IdentifierExpr id1) {
         return id1.Var;
@@ -426,6 +426,19 @@ namespace Microsoft.Dafny {
         return id2.Var;
       }
       return null;
+    }
+    
+    private static bool HasAttribute(Attributes a, string name) {
+      for (var it = a; it != null; it = it.Prev) {
+        if (it.Name == name) {
+          return true;
+        }
+      }
+      return false;
+    }
+    private static bool NeedsReveal(Function f) {
+      // Conservative: reveal only if the function is explicitly opaque or has no body.
+      return f == null || f.Body == null || HasAttribute(f.Attributes, "opaque");
     }
   }
 }
