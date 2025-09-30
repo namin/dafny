@@ -34,8 +34,15 @@ namespace Microsoft.Dafny {
       if (lineNo < 0) {
         return new SketchResponse("// Cannot find method");
       }
-      var allCalls = inductiveProofSketcher.AllCalls(method).Select(item => item.Item1).Distinct().ToList();
-      var vars = inductiveProofSketcher.FindInductionVariables(method).Distinct().ToList();
+      var allCalls = inductiveProofSketcher.AllCalls(method)
+          .Select(item => item.Item1)
+          .GroupBy(x => x.Name)
+          .Select(g => g.First())
+          .ToList();
+      var vars = inductiveProofSketcher.FindInductionVariables(method)
+          .GroupBy(x => x.Name)
+          .Select(g => g.First())
+          .ToList();
       var sketches = new List<(string, Method, List<int>)>();
       foreach (var call in allCalls) {
         await considerSketchMetric(sketches, programText, method.Name, lineNo,
