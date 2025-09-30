@@ -6,7 +6,7 @@ public abstract class ProofSketcher : InductionRewriter, ISketcher {
   public ProofSketcher(ErrorReporter reporter) : base(reporter) {
   }
   public abstract Task<SketchResponse> GenerateSketch(SketchRequest input);
-  public static readonly List<string> Types = new List<string> { "induction", "induction_search", "invariants", "conclusions", "assertions", "counterexamples", "call_lemma" };
+  public static readonly List<string> Types = new List<string> { "induction", "induction_search", "inductive_explorer", "counterexamples", "invariants", "conclusions", "assertions", "call_lemma" };
 
   public static ProofSketcher? Create(string sketchType, ErrorReporter reporter)
   {
@@ -14,7 +14,9 @@ public abstract class ProofSketcher : InductionRewriter, ISketcher {
       case "induction":
         return new InductiveProofSketcher(reporter);
       case "induction_search":
-        return new InductiveProofSearchSketcher(reporter);
+        return new InductiveProofSearchSketcher(reporter, false/*explorer*/);
+      case "inductive_explorer":
+        return new InductiveProofSearchSketcher(reporter, true/*explorer*/);
       case "invariants":
         return new InvariantSketcher(reporter);
       case "conclusions":

@@ -11,9 +11,11 @@ namespace Microsoft.Dafny {
   public class InductiveProofSearchSketcher : ProofSketcher {
     private readonly ErrorReporter reporter;
     private readonly InductiveProofSketcher inductiveProofSketcher;
+    private readonly bool explorer;
 
-    public InductiveProofSearchSketcher(ErrorReporter reporter) : base(reporter) {
+    public InductiveProofSearchSketcher(ErrorReporter reporter, bool explorer) : base(reporter) {
       this.reporter = reporter;
+      this.explorer = explorer;
       this.inductiveProofSketcher = new InductiveProofSketcher(reporter);
     }
 
@@ -45,17 +47,12 @@ namespace Microsoft.Dafny {
       }
       sketches = sketches.Where(s => s.Item2 != null).ToList();
       var sketchesByCount= sketches.OrderBy(x => (x.Item3.Count, x.Item1.Length)).ToList();
-      Log(string.Join("\n\n", sketchesByCount.Select(x => "// count " + x.Item3.Count + "\n" + x.Item1)));
-      var bestSketch = sketchesByCount.FirstOrDefault();
-      if (sketches.Count >= 2 && bestSketch.Item3.Count > 0) {
-        bestSketch = FindBestSketch(sketches);
-      }
-      return new SketchResponse(bestSketch.Item1);
-    }
-
-    private (string, Method, List<int>) FindBestSketch(List<(string, Method, List<int>)> sketches) {
       var maxDepth = sketches.Min(s => findDepth(s.Item2.Body));
-      return sketches.OrderBy(x => Metric(maxDepth, x.Item1, x.Item2, x.Item3)).FirstOrDefault();
+      var orderedSketches = sketches.OrderBy(x => Metric(maxDepth, x.Item1, x.Item2, x.Item3));
+      var exploreMsg = string.Join("\n\n", orderedSketches.Select(x => "// count " + x.Item3.Count + "\n" + x.Item1));
+      Log(exploreMsg);
+      var bestSketch = orderedSketches.FirstOrDefault();
+      return new SketchResponse(explorer ? exploreMsg : bestSketch.Item1);
     }
   
     private int Metric(int maxDepth, string sketch, Method method, List<int> badLines) {
