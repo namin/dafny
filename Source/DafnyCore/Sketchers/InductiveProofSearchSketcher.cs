@@ -53,6 +53,9 @@ namespace Microsoft.Dafny {
             inductiveProofSketcher.BuildProofSketch(method, inductionVar));
       }
       sketches = sketches.Where(s => s.Item2 != null).ToList();
+      if (sketches.Count() == 0) {
+        return new SketchResponse("// Error: no sketch");
+      }
       var sketchesByCount= sketches.OrderBy(x => (x.Item3.Count, x.Item1.Length)).ToList();
       var maxDepth = sketches.Min(s => findDepth(s.Item2.Body));
       var orderedSketches = sketches.OrderBy(x => Metric(maxDepth, x.Item1, x.Item2, x.Item3));
