@@ -65,7 +65,7 @@ namespace Microsoft.Dafny {
       return new SketchResponse(explorer ? exploreMsg : bestSketch.Item1);
     }
   
-    private int Metric(int maxDepth, string sketch, Method method, List<int> badLines) {
+    private (int,int) Metric(int maxDepth, string sketch, Method method, List<int> badLines) {
       Log("### Metric for: " + string.Join(", ", badLines));
       var sketchHeader = sketch
         .Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
@@ -79,7 +79,9 @@ namespace Microsoft.Dafny {
           m += 1;
         }
       }
-      return m;
+      var c = sketch.Length;
+      Log("#### Result: (" + m + "," + c + ")");
+      return (m, c);
     }
 
     private (int, bool) findNesting(Statement stmt, int line) {
