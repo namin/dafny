@@ -80,6 +80,10 @@ namespace Microsoft.Dafny {
         }
       }
       var c = sketch.Length;
+      if (m > 0)
+      {
+        c = -c;
+      }
       Log("#### Result: (" + m + "," + c + ")");
       return (m, c);
     }
