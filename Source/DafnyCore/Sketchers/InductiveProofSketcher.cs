@@ -5,14 +5,21 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.Dafny;
+using Serilog;
 
 namespace Microsoft.Dafny {
 
   public class InductiveProofSketcher : ProofSketcher {
     private readonly ErrorReporter reporter;
+    private readonly bool shallow;
 
     public InductiveProofSketcher(ErrorReporter reporter) : base(reporter) {
       this.reporter = reporter;
+      this.shallow = false;
+    }
+    public InductiveProofSketcher(ErrorReporter reporter, bool shallow) : base(reporter) {
+      this.reporter = reporter;
+      this.shallow = shallow;
     }
 
     public override Task<SketchResponse> GenerateSketch(SketchRequest input) {
@@ -150,6 +157,9 @@ namespace Microsoft.Dafny {
     }
 
     private void FollowExpr(StringBuilder sb, int indent, Expression expr, Method method, Function function, Dictionary<string, IVariable> env, bool noIndent = false) {
+      if (shallow && indent >= 2) {
+        return;
+      }
       if (ExprIsRecursiveCall(expr, function.Name)) {
         var functionCallExpr = (FunctionCallExpr)expr;
         var recursiveEnv = MapFunctionParametersToArguments(function, functionCallExpr);

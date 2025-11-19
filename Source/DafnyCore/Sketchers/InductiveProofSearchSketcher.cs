@@ -13,10 +13,10 @@ namespace Microsoft.Dafny {
     private readonly InductiveProofSketcher inductiveProofSketcher;
     private readonly bool explorer;
 
-    public InductiveProofSearchSketcher(ErrorReporter reporter, bool explorer) : base(reporter) {
+    public InductiveProofSearchSketcher(ErrorReporter reporter, bool explorer, bool shallow) : base(reporter) {
       this.reporter = reporter;
       this.explorer = explorer;
-      this.inductiveProofSketcher = new InductiveProofSketcher(reporter);
+      this.inductiveProofSketcher = new InductiveProofSketcher(reporter, shallow);
     }
 
     public override async Task<SketchResponse> GenerateSketch(SketchRequest input) {
@@ -75,7 +75,7 @@ namespace Microsoft.Dafny {
       foreach (var badLine in badLines) {
         var (nesting, found) = findNesting(method.Body, badLine);
         Log("Bad line: " + badLine + ", nesting: " + nesting + ", found: " + found);
-        if (nesting < maxDepth) {
+        if (nesting <= maxDepth) {
           m += 1;
         }
       }
