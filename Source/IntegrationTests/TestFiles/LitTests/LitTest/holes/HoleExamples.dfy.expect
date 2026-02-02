@@ -3,6 +3,8 @@ HoleExamples.dfy(33:2-33:6): Warning: hole: this code path is not yet implemente
 HoleExamples.dfy(42:4-42:8): Warning: hole: this code path is not yet implemented
 HoleExamples.dfy(44:4-44:8): Warning: hole: this code path is not yet implemented
 HoleExamples.dfy(54:4-54:8): Warning: hole: this code path is not yet implemented
+HoleExamples.dfy(65:2-65:6): Warning: hole: this code path is not yet implemented
+HoleExamples.dfy(77:2-77:6): Warning: hole: this code path is not yet implemented
 HoleExamples.dfy(8:0-8:1): Warning: hole obligation: a postcondition could not be proved on this return path
 HoleExamples.dfy(7:18-7:20): Related location: this is the postcondition that could not be proved
 HoleExamples.dfy(8:0-8:1): Warning: hole obligation: a postcondition could not be proved on this return path
@@ -23,5 +25,8 @@ HoleExamples.dfy(51:0-51:1): Warning: hole obligation: a postcondition could not
 HoleExamples.dfy(50:18-50:20): Related location: this is the postcondition that could not be proved
 HoleExamples.dfy(51:0-51:1): Warning: hole obligation: a postcondition could not be proved on this return path
 HoleExamples.dfy(50:44-50:46): Related location: this is the postcondition that could not be proved
+HoleExamples.dfy(66:2-66:8): Warning: hole obligation: assertion could not be proved
+HoleExamples.dfy(78:15-78:16): Warning: hole obligation: a precondition for this call could not be proved
+HoleExamples.dfy(71:13-71:14): Related location: this is the precondition that could not be proved
 
-Dafny program verifier finished with 1 verified, 10 errors
+Dafny program verifier finished with 1 verified, 12 errors

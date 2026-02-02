@@ -587,8 +587,9 @@ public class Compilation : IDisposable {
     var outcome = GetOutcome(result.Outcome);
     result.CounterExamples.Sort(new CounterexampleComparer());
     foreach (var counterExample in result.CounterExamples) {
-      // Check if this is a postcondition failure in a method with holes
-      bool isHoleObligation = methodHasHoles && counterExample is ReturnCounterexample;
+      // In a method with holes, all verification failures are obligations
+      // (the hole filling is expected to resolve them)
+      bool isHoleObligation = methodHasHoles;
 
       var description = counterExample.FailingAssert.Description as ProofObligationDescription;
       var dafnyDiagnostic = description?.GetDiagnostic(

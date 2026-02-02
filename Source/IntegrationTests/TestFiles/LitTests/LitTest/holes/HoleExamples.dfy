@@ -56,3 +56,24 @@ method MaxHoleOneBranch(x: int, y: int) returns (m: int)
     m := x;
   }
 }
+
+// Example 6: Hole sandwiched between code — assertion after hole is an obligation
+method HoleThenAssert(x: int) returns (r: int)
+  ensures r > 0
+{
+  r := 0;
+  hole "must make r positive";
+  assert r > 0; // obligation: hole must establish r > 0
+}
+
+// Example 7: Hole before a method call — precondition is an obligation
+method NeedsPositive(n: int)
+  requires n > 0
+{}
+
+method HoleThenCall(x: int)
+{
+  var y := 0;
+  hole "before call";
+  NeedsPositive(y); // obligation: hole must establish y > 0
+}
