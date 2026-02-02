@@ -11,6 +11,7 @@ public class ResolutionErrors {
     // ReSharper disable once InconsistentNaming
     none,
     r_assume_statement_without_axiom,
+    r_hole_statement,
     r_ghost_var_only_in_specifications,
     r_only_in_specification,
     r_ghost_parameters_only_in_specification,
@@ -96,6 +97,10 @@ public class ResolutionErrors {
     Add(ErrorId.r_assume_statement_without_axiom,
       @"
 ".TrimStart(), InsertBefore("{:axiom}"));
+    Add(ErrorId.r_hole_statement,
+      @"
+A hole statement marks a code path that is not yet implemented. Verification of postconditions will be reported as obligations (warnings) rather than errors.
+".TrimStart());
     Add(ErrorId.r_assert_only_assumes_others,
     @"
 When annotating an assertion with the `{:only}` attribute, all other implicit and explicit assertions

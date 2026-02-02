@@ -29,6 +29,9 @@ public partial class BoogieGenerator {
     stmtContext = StmtType.NONE;
     adjustFuelForExists = true;  // fuel for exists might need to be adjusted based on whether it's in an assert or assume stmt.
     switch (stmt) {
+      case HoleStmt holeStmt:
+        TrHoleStmt(holeStmt, builder, etran);
+        break;
       case PredicateStmt predicateStmt:
         TrPredicateStmt(predicateStmt, builder, locals, etran);
         break;

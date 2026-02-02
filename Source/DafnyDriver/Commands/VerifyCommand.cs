@@ -186,11 +186,12 @@ public static class VerifyCommand {
     verificationResults.Subscribe(result => {
       // We use an intermediate reporter so we can sort the diagnostics from all parts by token
       var batchReporter = new BatchErrorReporter(compilation.Options);
+      var methodHasHoles = Compilation.MethodContainsHoles(result.CanVerify);
       foreach (var completed in result.Results) {
         Compilation.ReportDiagnosticsInResult(compilation.Options, result.CanVerify.FullDafnyName,
           BoogieGenerator.ToDafnyToken(completed.Task.Token),
           (uint)completed.Result.RunTime.TotalSeconds,
-          completed.Result, batchReporter);
+          completed.Result, batchReporter, methodHasHoles);
       }
 
       foreach (var diagnostic in batchReporter.AllMessages.Order()) {

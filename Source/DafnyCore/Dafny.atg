@@ -142,6 +142,7 @@ TOKENS
   darrow = "=>".
   assume = "assume".
   assert = "assert".
+  hole = "hole".
   calc = "calc".
   case = "case".
   then = "then".
@@ -2234,6 +2235,7 @@ OneStmt<out Statement/*!*/ s>
   | ForLoopStmt<out s>
   | AssertStmt<out s>
   | AssumeStmt<out s>
+  | HoleStmt<out s>
   | BreakOrContinueStmt<out s>
   | CalcStmt<out s>
   | ExpectStmt<out s>
@@ -3095,6 +3097,23 @@ AssumeStmt<out Statement/*!*/ s>
        s = new AssumeStmt(new SourceOrigin(startToken, t, startToken), e, attrs);
      }
   .)
+  .
+
+/*------------------------------------------------------------------------*/
+HoleStmt<out Statement/*!*/ s>
+= (. Contract.Ensures(Contract.ValueAtReturn(out s) != null);
+     Token startToken = null;
+     string desc = null;
+     Attributes attrs = null;
+  .)
+  "hole"                                       (. startToken = t; .)
+  { Attribute<ref attrs> }
+  [ stringToken                                (. bool isVerbatimString;
+                                                  desc = Util.RemoveParsedStringQuotes(t.val, out isVerbatimString);
+                                               .)
+  ]
+  ";"
+  (. s = new HoleStmt(new SourceOrigin(startToken, t, startToken), desc, attrs); .)
   .
 
 /*------------------------------------------------------------------------*/

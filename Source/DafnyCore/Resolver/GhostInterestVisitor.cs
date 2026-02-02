@@ -79,6 +79,10 @@ class GhostInterestVisitor {
       case AssertStmt or AssumeStmt:
         stmt.IsGhost = true;
         break;
+      case HoleStmt:
+        // holes are NOT ghost — they represent missing compiled code
+        stmt.IsGhost = false;
+        break;
       case ExpectStmt expectStmt: {
           expectStmt.IsGhost = false;
           if (mustBeErasable) {

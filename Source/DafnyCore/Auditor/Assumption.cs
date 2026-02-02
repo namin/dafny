@@ -54,6 +54,11 @@ public record AssumptionDescription(
       IsExplicit: false
     );
   }
+  public static AssumptionDescription HoleStatement = new(
+    Issue: "Definition has [hole] statement in body.",
+    Mitigation: "Fill in the hole with an implementation.",
+    MitigationIetf: "MUST fill in the hole with an implementation.",
+    IsExplicit: true);
   public static AssumptionDescription MayNotTerminate = new(
     Issue: "Method may not terminate (uses [decreases *]).",
     Mitigation: "Provide a valid [decreases] clause.",

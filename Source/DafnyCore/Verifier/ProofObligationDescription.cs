@@ -857,6 +857,14 @@ public class EnsuresDescription : ProofObligationDescriptionCustomMessages {
   }
 }
 
+public class HoleObligationDescription : ProofObligationDescription {
+  public override string SuccessDescription => "obligation satisfied (hole context is sufficient)";
+  public override string FailureDescription =>
+    "hole obligation: this postcondition must be established by the hole filling";
+  public override string ShortDescription => "hole obligation";
+  public override bool IsImplicit => false;
+}
+
 public class LoopInvariant : ProofObligationDescriptionCustomMessages {
   public override string DefaultSuccessDescription =>
 "loop invariant always holds";

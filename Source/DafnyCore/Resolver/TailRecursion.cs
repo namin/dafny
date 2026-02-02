@@ -270,6 +270,7 @@ class TailRecursion {
     } else if (stmt is BlockByProofStmt blockByProofStmt) {
       return CheckTailRecursive(blockByProofStmt.Body, enclosingMethod, ref tailCall, reportErrors);
     } else if (stmt is LabeledStatement) {
+    } else if (stmt is HoleStmt) {
     } else {
       Contract.Assert(false);  // unexpected statement type
     }
