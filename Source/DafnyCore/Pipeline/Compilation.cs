@@ -572,9 +572,8 @@ public class Compilation : IDisposable {
     List<DafnyDiagnostic> diagnostics = [];
     errorReporter.Updates.Subscribe(d => diagnostics.Add(d.Diagnostic));
 
-    var methodHasHoles = MethodContainsHoles(canVerify);
     ReportDiagnosticsInResult(options, canVerify.NavigationRange.StartToken.val, BoogieGenerator.ToDafnyToken(task.Token),
-      task.Split.Implementation.GetTimeLimit(options), result, errorReporter, methodHasHoles);
+      task.Split.Implementation.GetTimeLimit(options), result, errorReporter);
 
     return diagnostics.OrderBy(d => d.Range.StartToken.GetLspPosition()).ToList();
   }
@@ -582,25 +581,14 @@ public class Compilation : IDisposable {
   public static void ReportDiagnosticsInResult(DafnyOptions options, string name, IOrigin token,
     uint timeLimit,
     VerificationRunResult result,
-    ErrorReporter errorReporter,
-    bool methodHasHoles = false) {
+    ErrorReporter errorReporter) {
     var outcome = GetOutcome(result.Outcome);
     result.CounterExamples.Sort(new CounterexampleComparer());
     foreach (var counterExample in result.CounterExamples) {
-      // In a method with holes, all verification failures are obligations
-      // (the hole filling is expected to resolve them)
-      bool isHoleObligation = methodHasHoles;
-
       var description = counterExample.FailingAssert.Description as ProofObligationDescription;
       var dafnyDiagnostic = description?.GetDiagnostic(
         BoogieGenerator.ToDafnyToken(counterExample.FailingAssert.tok).ReportingRange);
       if (options.Get(CommonOptionBag.JsonOutput) && dafnyDiagnostic != null) {
-        if (isHoleObligation) {
-          // Downgrade to warning for hole obligations
-          dafnyDiagnostic = new DafnyDiagnostic(dafnyDiagnostic.Source, dafnyDiagnostic.ErrorId,
-            dafnyDiagnostic.Range, dafnyDiagnostic.MessageParts.Select(m => "hole obligation: " + m).ToArray(),
-            ErrorLevel.Warning, dafnyDiagnostic.RelatedInformation);
-        }
         errorReporter.MessageCore(dafnyDiagnostic);
       } else {
         var errorInformation = counterExample.CreateErrorInformation(outcome, options.ForceBplErrors);
@@ -608,11 +596,7 @@ public class Compilation : IDisposable {
           AddAssertedExprToCounterExampleErrorInfo(options, counterExample, errorInformation);
         }
         var dafnyCounterExampleModel = options.ExtractCounterexample ? new DafnyModel(counterExample.Model, options) : null;
-        if (isHoleObligation) {
-          errorReporter.ReportBoogieWarning(errorInformation, dafnyCounterExampleModel);
-        } else {
-          errorReporter.ReportBoogieError(errorInformation, dafnyCounterExampleModel);
-        }
+        errorReporter.ReportBoogieError(errorInformation, dafnyCounterExampleModel);
       }
     }
 
@@ -622,10 +606,6 @@ public class Compilation : IDisposable {
     }
   }
 
-  public static bool MethodContainsHoles(ICanVerify canVerify) {
-    return canVerify is MethodOrConstructor m && m.Body != null &&
-           m.Body.DescendantsAndSelf.OfType<HoleStmt>().Any();
-  }
 
   private static ErrorInformation? ReportOutcome(DafnyOptions options,
       VcOutcome vcOutcome, string name,

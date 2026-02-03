@@ -41,38 +41,6 @@ public static class ErrorReporterExtensions {
     reporter.MessageCore(diagnostic);
   }
 
-  public static void ReportBoogieWarning(this ErrorReporter reporter, ErrorInformation error,
-    DafnyModel? counterexampleModel = null, bool useRange = true) {
-    var usingSnippets = reporter.Options.Get(Snippets.ShowSnippets);
-    var relatedInformation = new List<DafnyRelatedInformation>();
-    foreach (var auxiliaryInformation in error.Aux) {
-      if (auxiliaryInformation.Category == RelatedMessageCategory || auxiliaryInformation.Category == AssertedExprCategory) {
-        error.Msg += "\n" + auxiliaryInformation.FullMsg;
-      } else if (auxiliaryInformation.Category == RelatedLocationCategory) {
-        var auxiliaryToken = BoogieGenerator.ToDafnyToken(auxiliaryInformation.Tok);
-        relatedInformation.Add(new DafnyRelatedInformation(auxiliaryToken.ReportingRange, "", [auxiliaryInformation.Msg]));
-        relatedInformation.AddRange(CreateDiagnosticRelatedInformationFor(auxiliaryToken, usingSnippets));
-      } else {
-        if (auxiliaryInformation.Tok.line > 0) {
-          reporter.Info(MessageSource.Verifier, BoogieGenerator.ToDafnyToken(auxiliaryInformation.Tok), auxiliaryInformation.Msg);
-        }
-      }
-    }
-
-    if (counterexampleModel != null) {
-      error.Msg += "\n" + $"Related counterexample:\n{counterexampleModel}";
-    }
-
-    relatedInformation.AddRange(CreateDiagnosticRelatedInformationFor(BoogieGenerator.ToDafnyToken(error.Tok), usingSnippets));
-
-    var dafnyToken = BoogieGenerator.ToDafnyToken(error.Tok);
-
-    var diagnostic = new DafnyDiagnostic(MessageSource.Verifier, null!, dafnyToken.ReportingRange,
-      ["hole obligation: " + error.Msg],
-      ErrorLevel.Warning, relatedInformation);
-    reporter.MessageCore(diagnostic);
-  }
-
   private const string RelatedLocationCategory = "Related location";
   private const string RelatedMessageCategory = "Related message";
   public const string AssertedExprCategory = "Asserted expression";
