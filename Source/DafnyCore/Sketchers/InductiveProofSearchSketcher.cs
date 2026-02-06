@@ -13,10 +13,10 @@ namespace Microsoft.Dafny {
     private readonly InductiveProofSketcher inductiveProofSketcher;
     private readonly bool explorer;
 
-    public InductiveProofSearchSketcher(ErrorReporter reporter, bool explorer, bool shallow) : base(reporter) {
+    public InductiveProofSearchSketcher(ErrorReporter reporter, bool explorer, bool induction, bool shallow) : base(reporter) {
       this.reporter = reporter;
       this.explorer = explorer;
-      this.inductiveProofSketcher = new InductiveProofSketcher(reporter, shallow);
+      this.inductiveProofSketcher = new InductiveProofSketcher(reporter, induction, shallow);
     }
 
     public override async Task<SketchResponse> GenerateSketch(SketchRequest input) {

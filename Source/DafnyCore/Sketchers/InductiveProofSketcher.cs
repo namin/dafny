@@ -12,16 +12,19 @@ namespace Microsoft.Dafny {
   public class InductiveProofSketcher : ProofSketcher {
     private readonly ErrorReporter reporter;
     private readonly bool shallow;
+    private readonly bool induction;
 
     public InductiveProofSketcher(ErrorReporter reporter) : base(reporter) {
       this.reporter = reporter;
       this.shallow = false;
+      this.induction = true;
     }
-    public InductiveProofSketcher(ErrorReporter reporter, bool shallow) : base(reporter) {
+    public InductiveProofSketcher(ErrorReporter reporter, bool induction, bool shallow) : base(reporter) {
       this.reporter = reporter;
+      this.induction = induction;
       this.shallow = shallow;
     }
-
+  
     public override Task<SketchResponse> GenerateSketch(SketchRequest input) {
       return Task.FromResult(new SketchResponse(GenerateProofSketch(input.ResolvedProgram, input.Method, input.LineNumber)));
     }
@@ -161,9 +164,11 @@ namespace Microsoft.Dafny {
         return;
       }
       if (ExprIsRecursiveCall(expr, function.Name)) {
-        var functionCallExpr = (FunctionCallExpr)expr;
-        var recursiveEnv = MapFunctionParametersToArguments(function, functionCallExpr);
-        HandleRecursiveCall(sb, indent, method, env, recursiveEnv);
+        if (induction) {
+          var functionCallExpr = (FunctionCallExpr)expr;
+          var recursiveEnv = MapFunctionParametersToArguments(function, functionCallExpr);
+          HandleRecursiveCall(sb, indent, method, env, recursiveEnv);
+      }
       } else if (expr is NestedMatchExpr nestedMatchExpr) {
         sb.AppendLine($"{Indent(indent)}match {PrintExpression(nestedMatchExpr.Source)} {{");
         foreach (var caseStmt in nestedMatchExpr.Cases) {
@@ -325,12 +330,14 @@ namespace Microsoft.Dafny {
           var formalParams = string.Join(", ", ctor.Formals.Select(f => f.Name));
           sb.AppendLine($"{Indent(1)}case {ctor.Name}({formalParams}) => {{");
 
-          var recursiveFields = ctor.Formals
-              .Where(f => f.Type.IsDatatype && f.Type.AsDatatype == inductionVar.Type.AsDatatype)
-              .Select(f => f.Name);
+          if (induction) {
+            var recursiveFields = ctor.Formals
+                .Where(f => f.Type.IsDatatype && f.Type.AsDatatype == inductionVar.Type.AsDatatype)
+                .Select(f => f.Name);
 
-          foreach (var recursiveField in recursiveFields) {
-            sb.AppendLine(recursiveMethodCall(2, method, inductionVar, recursiveField));
+            foreach (var recursiveField in recursiveFields) {
+              sb.AppendLine(recursiveMethodCall(2, method, inductionVar, recursiveField));
+            }
           }
 
           sb.AppendLine($"{Indent(1)}}}");
@@ -342,7 +349,9 @@ namespace Microsoft.Dafny {
         sb.AppendLine($"{Indent(0)}if ({inductionVar.Name} == 0) {{");
         sb.AppendLine($"{Indent(1)}// Base case");
         sb.AppendLine($"{Indent(0)}}} else {{");
-        sb.AppendLine(recursiveMethodCall(1, method, inductionVar, $"{inductionVar.Name} - 1"));
+        if (induction) {
+          sb.AppendLine(recursiveMethodCall(1, method, inductionVar, $"{inductionVar.Name} - 1"));
+        }
         sb.AppendLine($"{Indent(0)}}}");
       } else {
         sb.AppendLine($"{Indent(0)}// Cannot generate induction proof sketch for this type.");
