@@ -33,20 +33,22 @@ namespace Microsoft.Dafny {
         return "// Error: No method resolved.";
       }
 
-      // Check for manual {:induction_on x} attribute
-      var manualVar = FindManualInductionVariable(method);
-      if (manualVar != null) {
-        // Check if the manual target matches a function name in AllCalls (rule induction)
+      // Check for manual {:induction_on} attribute
+      var manualTarget = FindManualInductionTarget(method);
+      if (manualTarget is FunctionCallExpr funcCall) {
+        return GenerateFunctionBasedInductionProofSketch(method, funcCall);
+      }
+      if (manualTarget is (string name, IVariable variable)) {
+        if (variable != null) {
+          return BuildProofSketch(method, variable);
+        }
+        // Name didn't match a parameter; check if it matches a function in AllCalls
         var allCalls = AllCalls(method);
-        var matchingCall = allCalls.FirstOrDefault(c => c.Item1.Function.Name == manualVar.Value.name).Item1;
+        var matchingCall = allCalls.FirstOrDefault(c => c.Item1.Function.Name == name).Item1;
         if (matchingCall != null) {
           return GenerateFunctionBasedInductionProofSketch(method, matchingCall);
         }
-        // Otherwise, use structural induction on the matched parameter
-        if (manualVar.Value.variable != null) {
-          return BuildProofSketch(method, manualVar.Value.variable);
-        }
-        return $"// Error: {{:induction_on}} target '{manualVar.Value.name}' not found among parameters.";
+        return $"// Error: {{:induction_on}} target '{name}' not found among parameters or called functions.";
       }
 
       // Determine if function-based induction should be applied
@@ -60,12 +62,24 @@ namespace Microsoft.Dafny {
       return GenerateStandardInductionProofSketch(method);
     }
 
-    private (string name, IVariable? variable)? FindManualInductionVariable(Method method) {
+    // Returns one of:
+    //   FunctionCallExpr  — if the attribute argument is a function application
+    //   (string, IVariable?) — if it's a bare name (variable matched against Ins, or null)
+    //   null — if no {:induction_on} attribute present
+    private object? FindManualInductionTarget(Method method) {
       var attr = Attributes.Find(method.Attributes, "induction_on");
       if (attr == null || attr.Args.Count == 0) {
         return null;
       }
       var arg = attr.Args[0];
+      // Check if the argument is (or resolves to) a function call
+      if (arg is FunctionCallExpr fc) {
+        return fc;
+      }
+      if (arg.Resolved is FunctionCallExpr resolvedFc) {
+        return resolvedFc;
+      }
+      // Otherwise treat as a bare name
       string? name = null;
       if (arg is NameSegment ns) {
         name = ns.Name;
