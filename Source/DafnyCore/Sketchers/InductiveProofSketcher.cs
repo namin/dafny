@@ -206,7 +206,10 @@ namespace Microsoft.Dafny {
     private string substitutePattern(ExtendedPattern p) {
       var s = p.ToString();
       // replace all variable names starting with underscores with just underscores, since they are unused
-      return Regex.Replace(s, @"\b_[A-Za-z0-9_]*\b", "_");
+      s = Regex.Replace(s, @"\b_[A-Za-z0-9_]*\b", "_");
+      // replace internal tuple constructor _#MakeN(...) with just (...)
+      s = Regex.Replace(s, @"_#Make\d+\(", "(");
+      return s;
     }
 
     private void FollowExpr(StringBuilder sb, int indent, Expression expr, Method method, Function function, Dictionary<string, IVariable> env, bool noIndent = false) {
