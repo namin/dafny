@@ -32,6 +32,25 @@ namespace Microsoft.Dafny {
       if (method == null) {
         return "// Error: No method resolved.";
       }
+
+      // Check for manual {:induction_on} attribute
+      var manualTarget = FindManualInductionTarget(method);
+      if (manualTarget is FunctionCallExpr funcCall) {
+        return GenerateFunctionBasedInductionProofSketch(method, funcCall);
+      }
+      if (manualTarget is (string name, IVariable variable)) {
+        if (variable != null) {
+          return BuildProofSketch(method, variable);
+        }
+        // Name didn't match a parameter; check if it matches a function in AllCalls
+        var allCalls = AllCalls(method);
+        var matchingCall = allCalls.FirstOrDefault(c => c.Item1.Function.Name == name).Item1;
+        if (matchingCall != null) {
+          return GenerateFunctionBasedInductionProofSketch(method, matchingCall);
+        }
+        return $"// Error: {{:induction_on}} target '{name}' not found among parameters or called functions.";
+      }
+
       // Determine if function-based induction should be applied
       if (method.Req.Count != 0 || method.Ens.Any(exp => exp.Attributes != null && exp.Attributes.Name == "induction_target")) {
         var functionCallExpr = CallsFunction(method);
@@ -41,6 +60,37 @@ namespace Microsoft.Dafny {
       }
       // Fallback to structural induction
       return GenerateStandardInductionProofSketch(method);
+    }
+
+    // Returns one of:
+    //   FunctionCallExpr  — if the attribute argument is a function application
+    //   (string, IVariable?) — if it's a bare name (variable matched against Ins, or null)
+    //   null — if no {:induction_on} attribute present
+    private object? FindManualInductionTarget(Method method) {
+      var attr = Attributes.Find(method.Attributes, "induction_on");
+      if (attr == null || attr.Args.Count == 0) {
+        return null;
+      }
+      var arg = attr.Args[0];
+      // Check if the argument is (or resolves to) a function call
+      if (arg is FunctionCallExpr fc) {
+        return fc;
+      }
+      if (arg.Resolved is FunctionCallExpr resolvedFc) {
+        return resolvedFc;
+      }
+      // Otherwise treat as a bare name
+      string? name = null;
+      if (arg is NameSegment ns) {
+        name = ns.Name;
+      } else if (arg.Resolved is IdentifierExpr idExpr) {
+        name = idExpr.Name;
+      }
+      if (name == null) {
+        return null;
+      }
+      var matchedFormal = method.Ins.FirstOrDefault(f => f.Name == name);
+      return (name, matchedFormal);
     }
 
     public List<(FunctionCallExpr,bool)> AllCalls(Method method) {
@@ -156,7 +206,10 @@ namespace Microsoft.Dafny {
     private string substitutePattern(ExtendedPattern p) {
       var s = p.ToString();
       // replace all variable names starting with underscores with just underscores, since they are unused
-      return Regex.Replace(s, @"\b_[A-Za-z0-9_]*\b", "_");
+      s = Regex.Replace(s, @"\b_[A-Za-z0-9_]*\b", "_");
+      // replace internal tuple constructor _#MakeN(...) with just (...)
+      s = Regex.Replace(s, @"_#Make\d+\(", "(");
+      return s;
     }
 
     private void FollowExpr(StringBuilder sb, int indent, Expression expr, Method method, Function function, Dictionary<string, IVariable> env, bool noIndent = false) {
