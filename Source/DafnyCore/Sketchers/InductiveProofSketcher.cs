@@ -32,6 +32,23 @@ namespace Microsoft.Dafny {
       if (method == null) {
         return "// Error: No method resolved.";
       }
+
+      // Check for manual {:induction_on x} attribute
+      var manualVar = FindManualInductionVariable(method);
+      if (manualVar != null) {
+        // Check if the manual target matches a function name in AllCalls (rule induction)
+        var allCalls = AllCalls(method);
+        var matchingCall = allCalls.FirstOrDefault(c => c.Item1.Function.Name == manualVar.Value.name).Item1;
+        if (matchingCall != null) {
+          return GenerateFunctionBasedInductionProofSketch(method, matchingCall);
+        }
+        // Otherwise, use structural induction on the matched parameter
+        if (manualVar.Value.variable != null) {
+          return BuildProofSketch(method, manualVar.Value.variable);
+        }
+        return $"// Error: {{:induction_on}} target '{manualVar.Value.name}' not found among parameters.";
+      }
+
       // Determine if function-based induction should be applied
       if (method.Req.Count != 0 || method.Ens.Any(exp => exp.Attributes != null && exp.Attributes.Name == "induction_target")) {
         var functionCallExpr = CallsFunction(method);
@@ -41,6 +58,25 @@ namespace Microsoft.Dafny {
       }
       // Fallback to structural induction
       return GenerateStandardInductionProofSketch(method);
+    }
+
+    private (string name, IVariable? variable)? FindManualInductionVariable(Method method) {
+      var attr = Attributes.Find(method.Attributes, "induction_on");
+      if (attr == null || attr.Args.Count == 0) {
+        return null;
+      }
+      var arg = attr.Args[0];
+      string? name = null;
+      if (arg is NameSegment ns) {
+        name = ns.Name;
+      } else if (arg.Resolved is IdentifierExpr idExpr) {
+        name = idExpr.Name;
+      }
+      if (name == null) {
+        return null;
+      }
+      var matchedFormal = method.Ins.FirstOrDefault(f => f.Name == name);
+      return (name, matchedFormal);
     }
 
     public List<(FunctionCallExpr,bool)> AllCalls(Method method) {
